@@ -1,0 +1,474 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════
+   TaskFlow — Serene Workflow Design System
+   Theme tokens as CSS custom properties for light + dark mode
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Light Mode (default) ──────────────────────────────── */
+:root {
+  /* Surface & Background */
+  --tf-bg: #FAF9F5;
+  --tf-surface: #fbf8fe;
+  --tf-surface-dim: #dbd9de;
+  --tf-surface-bright: #fbf8fe;
+  --tf-surface-lowest: #ffffff;
+  --tf-surface-low: #f5f2f8;
+  --tf-surface-container: #f0edf2;
+  --tf-surface-high: #eae7ec;
+  --tf-surface-highest: #e4e1e7;
+  --tf-surface-variant: #e4e1e7;
+
+  /* Primary */
+  --tf-primary: #554ac5;
+  --tf-on-primary: #ffffff;
+  --tf-primary-container: #6e64e0;
+  --tf-on-primary-container: #fffdff;
+  --tf-primary-fixed: #e3dfff;
+  --tf-primary-fixed-dim: #c5c0ff;
+  --tf-on-primary-fixed: #140067;
+  --tf-on-primary-fixed-variant: #3e30ae;
+  --tf-inverse-primary: #c5c0ff;
+  --tf-surface-tint: #574cc7;
+
+  /* Secondary (Sage) */
+  --tf-secondary: #3f674e;
+  --tf-on-secondary: #ffffff;
+  --tf-secondary-container: #beeaca;
+  --tf-on-secondary-container: #436b52;
+  --tf-secondary-fixed: #c1edcd;
+  --tf-secondary-fixed-dim: #a5d1b2;
+
+  /* Tertiary (Amber) */
+  --tf-tertiary: #7e5400;
+  --tf-on-tertiary: #ffffff;
+  --tf-tertiary-container: #9b6c18;
+  --tf-on-tertiary-container: #fffdff;
+  --tf-tertiary-fixed: #ffddb0;
+  --tf-tertiary-fixed-dim: #f7bc62;
+
+  /* Error (Coral) */
+  --tf-error: #ba1a1a;
+  --tf-on-error: #ffffff;
+  --tf-error-container: #ffdad6;
+  --tf-on-error-container: #93000a;
+
+  /* Text */
+  --tf-on-surface: #1b1b1f;
+  --tf-on-surface-variant: #474553;
+  --tf-on-background: #1b1b1f;
+  --tf-inverse-surface: #303034;
+  --tf-inverse-on-surface: #f2f0f5;
+
+  /* Borders */
+  --tf-outline: #787585;
+  --tf-outline-variant: #c8c4d6;
+  --tf-border-card: #E8E5DC;
+
+  /* Semantic */
+  --tf-destructive: #E08074;
+
+  /* Shadows */
+  --tf-shadow-1: 0px 2px 4px rgba(0, 0, 0, 0.04);
+  --tf-shadow-2: 0px 8px 16px rgba(0, 0, 0, 0.08);
+  --tf-shadow-3: 0px 16px 32px rgba(0, 0, 0, 0.12);
+
+  /* Radii */
+  --tf-radius-sm: 0.25rem;
+  --tf-radius: 0.5rem;
+  --tf-radius-md: 0.75rem;
+  --tf-radius-lg: 1rem;
+  --tf-radius-xl: 1.5rem;
+  --tf-radius-full: 9999px;
+
+  /* Spacing */
+  --tf-unit: 4px;
+  --tf-sidebar-width: 260px;
+  --tf-gutter: 16px;
+  --tf-margin-mobile: 16px;
+  --tf-margin-desktop: 24px;
+  --tf-card-padding: 16px;
+
+  /* Elevation */
+  --tf-scrim: rgba(42, 42, 46, 0.40);
+}
+
+/* ─── Dark Mode ─────────────────────────────────────────── */
+.dark {
+  --tf-bg: #14171C;
+  --tf-surface: #1A1E27;
+  --tf-surface-dim: #111419;
+  --tf-surface-bright: #2A2E38;
+  --tf-surface-lowest: #0F1218;
+  --tf-surface-low: #161A22;
+  --tf-surface-container: #1E222C;
+  --tf-surface-high: #262A34;
+  --tf-surface-highest: #2E323C;
+  --tf-surface-variant: #2A2E38;
+
+  --tf-primary: #8B82F0;
+  --tf-on-primary: #ffffff;
+  --tf-primary-container: #7A70E8;
+  --tf-on-primary-container: #ffffff;
+  --tf-primary-fixed: #3A3070;
+  --tf-primary-fixed-dim: #9B93F5;
+  --tf-on-primary-fixed: #E3DFFF;
+  --tf-on-primary-fixed-variant: #B0AAFF;
+  --tf-inverse-primary: #554ac5;
+  --tf-surface-tint: #8B82F0;
+
+  --tf-secondary: #8CC99C;
+  --tf-on-secondary: #0F1218;
+  --tf-secondary-container: #2A4A36;
+  --tf-on-secondary-container: #A5D1B2;
+  --tf-secondary-fixed: #2A4A36;
+  --tf-secondary-fixed-dim: #6DB882;
+
+  --tf-tertiary: #F0C878;
+  --tf-on-tertiary: #0F1218;
+  --tf-tertiary-container: #6B4C12;
+  --tf-on-tertiary-container: #FFDDB0;
+  --tf-tertiary-fixed: #6B4C12;
+  --tf-tertiary-fixed-dim: #E0B060;
+
+  --tf-error: #FFB4AB;
+  --tf-on-error: #690005;
+  --tf-error-container: #93000A;
+  --tf-on-error-container: #FFDAD6;
+
+  --tf-on-surface: #E8E6F0;
+  --tf-on-surface-variant: #9B98A8;
+  --tf-on-background: #E8E6F0;
+  --tf-inverse-surface: #E8E6F0;
+  --tf-inverse-on-surface: #303034;
+
+  --tf-outline: #8A879A;
+  --tf-outline-variant: #44424F;
+  --tf-border-card: #33313E;
+
+  --tf-destructive: #FF8A7A;
+
+  --tf-shadow-1: 0px 2px 4px rgba(0, 0, 0, 0.20);
+  --tf-shadow-2: 0px 8px 16px rgba(0, 0, 0, 0.30);
+  --tf-shadow-3: 0px 16px 32px rgba(0, 0, 0, 0.40);
+
+  --tf-scrim: rgba(0, 0, 0, 0.60);
+}
+
+/* ─── Tailwind v4 Theme Registration ────────────────────── */
+@theme inline {
+  /* Fonts */
+  --font-heading: var(--font-plus-jakarta-sans);
+  --font-body: var(--font-inter);
+  --font-mono: var(--font-ibm-plex-mono);
+
+  /* Color tokens mapped to Tailwind */
+  --color-background: var(--tf-bg);
+  --color-foreground: var(--tf-on-surface);
+
+  --color-surface: var(--tf-surface);
+  --color-surface-dim: var(--tf-surface-dim);
+  --color-surface-bright: var(--tf-surface-bright);
+  --color-surface-lowest: var(--tf-surface-lowest);
+  --color-surface-low: var(--tf-surface-low);
+  --color-surface-container: var(--tf-surface-container);
+  --color-surface-high: var(--tf-surface-high);
+  --color-surface-highest: var(--tf-surface-highest);
+  --color-surface-variant: var(--tf-surface-variant);
+  --color-surface-tint: var(--tf-surface-tint);
+
+  --color-primary: var(--tf-primary);
+  --color-on-primary: var(--tf-on-primary);
+  --color-primary-container: var(--tf-primary-container);
+  --color-on-primary-container: var(--tf-on-primary-container);
+  --color-primary-fixed: var(--tf-primary-fixed);
+  --color-primary-fixed-dim: var(--tf-primary-fixed-dim);
+  --color-on-primary-fixed: var(--tf-on-primary-fixed);
+  --color-on-primary-fixed-variant: var(--tf-on-primary-fixed-variant);
+  --color-inverse-primary: var(--tf-inverse-primary);
+
+  --color-secondary: var(--tf-secondary);
+  --color-on-secondary: var(--tf-on-secondary);
+  --color-secondary-container: var(--tf-secondary-container);
+  --color-on-secondary-container: var(--tf-on-secondary-container);
+  --color-secondary-fixed: var(--tf-secondary-fixed);
+  --color-secondary-fixed-dim: var(--tf-secondary-fixed-dim);
+
+  --color-tertiary: var(--tf-tertiary);
+  --color-on-tertiary: var(--tf-on-tertiary);
+  --color-tertiary-container: var(--tf-tertiary-container);
+  --color-on-tertiary-container: var(--tf-on-tertiary-container);
+  --color-tertiary-fixed: var(--tf-tertiary-fixed);
+  --color-tertiary-fixed-dim: var(--tf-tertiary-fixed-dim);
+
+  --color-error: var(--tf-error);
+  --color-on-error: var(--tf-on-error);
+  --color-error-container: var(--tf-error-container);
+  --color-on-error-container: var(--tf-on-error-container);
+  --color-destructive: var(--tf-destructive);
+
+  --color-on-surface: var(--tf-on-surface);
+  --color-on-surface-variant: var(--tf-on-surface-variant);
+  --color-on-background: var(--tf-on-background);
+  --color-inverse-surface: var(--tf-inverse-surface);
+  --color-inverse-on-surface: var(--tf-inverse-on-surface);
+
+  --color-outline: var(--tf-outline);
+  --color-outline-variant: var(--tf-outline-variant);
+  --color-border-card: var(--tf-border-card);
+
+  --color-scrim: var(--tf-scrim);
+
+  /* shadcn semantic tokens mapped to design system */
+  --color-popover: var(--tf-surface-container);
+  --color-popover-foreground: var(--tf-on-surface);
+  --color-muted: var(--tf-surface-low);
+  --color-muted-foreground: var(--tf-on-surface-variant);
+  --color-accent: var(--tf-primary-container);
+  --color-accent-foreground: var(--tf-on-primary-container);
+  --color-input: var(--tf-outline-variant);
+  --color-ring: var(--tf-primary);
+  --color-border: var(--tf-outline-variant);
+  --color-card: var(--tf-surface-lowest);
+  --color-card-foreground: var(--tf-on-surface);
+
+  /* Spacing */
+  --spacing-unit: var(--tf-unit);
+  --spacing-gutter: var(--tf-gutter);
+  --spacing-sidebar: var(--tf-sidebar-width);
+  --spacing-card-pad: var(--tf-card-padding);
+  --spacing-margin-mobile: var(--tf-margin-mobile);
+  --spacing-margin-desktop: var(--tf-margin-desktop);
+
+  /* Radii */
+  --radius-sm: var(--tf-radius-sm);
+  --radius-md: var(--tf-radius-md);
+  --radius-lg: var(--tf-radius-lg);
+  --radius-xl: var(--tf-radius-xl);
+}
+
+html,
+body {
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--tf-bg);
+  color: var(--tf-on-surface);
+  font-family: var(--font-body), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: var(--tf-primary-fixed);
+  color: var(--tf-on-primary-fixed);
+}
+
+/* ─── Elevation Utilities ───────────────────────────────── */
+.elevation-0 {
+  background-color: var(--tf-bg);
+}
+
+.elevation-1 {
+  background-color: var(--tf-surface-lowest);
+  border: 1px solid var(--tf-border-card);
+  box-shadow: var(--tf-shadow-1);
+}
+
+.elevation-2 {
+  background-color: var(--tf-surface-lowest);
+  border: 1px solid var(--tf-border-card);
+  box-shadow: var(--tf-shadow-2);
+}
+
+/* ─── Custom Scrollbar ──────────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--tf-outline-variant);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--tf-outline);
+}
+
+/* ─── Kanban Scrollbar ──────────────────────────────────── */
+.kanban-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.kanban-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.kanban-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--tf-outline-variant);
+  border-radius: 4px;
+}
+
+/* ─── Timeline Connector ────────────────────────────────── */
+.timeline-line::before {
+  content: '';
+  position: absolute;
+  top: 24px;
+  bottom: -24px;
+  left: 20px;
+  width: 2px;
+  background-color: var(--tf-border-card);
+  z-index: 0;
+}
+
+.timeline-item:last-child .timeline-line::before {
+  display: none;
+}
+
+/* ─── Focus Styles ──────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--tf-primary);
+  outline-offset: 2px;
+  border-radius: var(--tf-radius-sm);
+}
+
+/* ─── Auth Background Mesh ──────────────────────────────── */
+.auth-bg-mesh {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background:
+    radial-gradient(at 0% 0%, rgba(110, 100, 224, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(63, 103, 78, 0.05) 0px, transparent 50%);
+}
+
+.dark .auth-bg-mesh {
+  background:
+    radial-gradient(at 0% 0%, rgba(139, 130, 240, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(140, 201, 156, 0.06) 0px, transparent 50%);
+}
+
+/* ─── Animations ────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slide-down {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 200ms ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 300ms ease-out;
+}
+
+.animate-slide-down {
+  animation: slide-down 200ms ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 200ms ease-out;
+}
+
+/* ─── Universal Dropdown & Select Hover / Highlight System ─── */
+[data-slot="dropdown-menu-item"]:not([data-variant="destructive"]):hover,
+[data-slot="dropdown-menu-item"]:not([data-variant="destructive"])[data-highlighted],
+[data-slot="dropdown-menu-item"]:not([data-variant="destructive"]):focus,
+[data-slot="dropdown-menu-sub-trigger"]:hover,
+[data-slot="dropdown-menu-sub-trigger"][data-highlighted],
+[data-slot="dropdown-menu-sub-trigger"]:focus,
+[data-slot="dropdown-menu-checkbox-item"]:hover,
+[data-slot="dropdown-menu-checkbox-item"][data-highlighted],
+[data-slot="dropdown-menu-checkbox-item"]:focus,
+[data-slot="dropdown-menu-radio-item"]:hover,
+[data-slot="dropdown-menu-radio-item"][data-highlighted],
+[data-slot="dropdown-menu-radio-item"]:focus,
+[data-slot="select-item"]:hover,
+[data-slot="select-item"][data-highlighted],
+[data-slot="select-item"]:focus {
+  background-color: rgba(85, 74, 197, 0.10) !important;
+  color: #554ac5 !important;
+}
+
+[data-slot="dropdown-menu-item"]:not([data-variant="destructive"]):hover svg,
+[data-slot="dropdown-menu-item"]:not([data-variant="destructive"])[data-highlighted] svg,
+[data-slot="dropdown-menu-item"]:not([data-variant="destructive"]):focus svg,
+[data-slot="dropdown-menu-sub-trigger"]:hover svg,
+[data-slot="dropdown-menu-sub-trigger"][data-highlighted] svg,
+[data-slot="dropdown-menu-sub-trigger"]:focus svg {
+  color: #554ac5 !important;
+}
+
+[data-slot="dropdown-menu-item"][data-variant="destructive"]:hover,
+[data-slot="dropdown-menu-item"][data-variant="destructive"][data-highlighted],
+[data-slot="dropdown-menu-item"][data-variant="destructive"]:focus {
+  background-color: rgba(186, 26, 26, 0.12) !important;
+  color: #ba1a1a !important;
+}
+
+.dark [data-slot="dropdown-menu-item"]:not([data-variant="destructive"]):hover,
+.dark [data-slot="dropdown-menu-item"]:not([data-variant="destructive"])[data-highlighted],
+.dark [data-slot="dropdown-menu-item"]:not([data-variant="destructive"]):focus,
+.dark [data-slot="dropdown-menu-sub-trigger"]:hover,
+.dark [data-slot="dropdown-menu-sub-trigger"][data-highlighted],
+.dark [data-slot="dropdown-menu-sub-trigger"]:focus,
+.dark [data-slot="dropdown-menu-checkbox-item"]:hover,
+.dark [data-slot="dropdown-menu-checkbox-item"][data-highlighted],
+.dark [data-slot="dropdown-menu-checkbox-item"]:focus,
+.dark [data-slot="dropdown-menu-radio-item"]:hover,
+.dark [data-slot="dropdown-menu-radio-item"][data-highlighted],
+.dark [data-slot="dropdown-menu-radio-item"]:focus,
+.dark [data-slot="select-item"]:hover,
+.dark [data-slot="select-item"][data-highlighted],
+.dark [data-slot="select-item"]:focus {
+  background-color: rgba(255, 255, 255, 0.10) !important;
+  color: #ffffff !important;
+}
+
+.dark [data-slot="dropdown-menu-item"]:not([data-variant="destructive"]):hover svg,
+.dark [data-slot="dropdown-menu-item"]:not([data-variant="destructive"])[data-highlighted] svg,
+.dark [data-slot="dropdown-menu-item"]:not([data-variant="destructive"]):focus svg,
+.dark [data-slot="dropdown-menu-sub-trigger"]:hover svg,
+.dark [data-slot="dropdown-menu-sub-trigger"][data-highlighted] svg,
+.dark [data-slot="dropdown-menu-sub-trigger"]:focus svg {
+  color: #ffffff !important;
+}
+
+.dark [data-slot="dropdown-menu-item"][data-variant="destructive"]:hover,
+.dark [data-slot="dropdown-menu-item"][data-variant="destructive"][data-highlighted],
+.dark [data-slot="dropdown-menu-item"][data-variant="destructive"]:focus {
+  background-color: rgba(255, 180, 171, 0.18) !important;
+  color: #FFB4AB !important;
+}
