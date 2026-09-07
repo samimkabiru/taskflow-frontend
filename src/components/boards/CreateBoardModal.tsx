@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Sparkles, RotateCcw } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,23 @@ const ACCENT_COLORS = [
   "#6E64E0", "#A5D1B2", "#F7BC62", "#E08074", "#C5C0FF",
   "#9B6C18", "#554AC5", "#BA1A1A",
 ];
+
+export function generatePrefixFromName(name: string): string {
+  if (!name.trim()) return "";
+  const normalized = name
+    .replace(/([a-z])([A-Z])/g, "$1 $2") // CamelCase split (e.g. TaskFlow -> Task Flow)
+    .replace(/[-_]/g, " ")               // hyphens and underscores to space
+    .replace(/[^a-zA-Z\s]/g, "")         // remove numbers and symbols
+    .trim();
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "";
+  if (words.length >= 2) {
+    return words.map((w) => w[0].toUpperCase()).join("").slice(0, 6);
+  }
+  const single = words[0].toUpperCase();
+  if (single.length >= 3) return single.slice(0, 3);
+  return single.slice(0, 2);
+}
 
 interface CreateBoardModalProps {
   open: boolean;
@@ -33,13 +50,42 @@ export default function CreateBoardModal({ open, onClose, onCreateBoard }: Creat
   const [description, setDescription] = useState("");
   const [accentColor, setAccentColor] = useState(ACCENT_COLORS[0]);
   const [taskPrefix, setTaskPrefix] = useState("");
+  const [isPrefixManual, setIsPrefixManual] = useState(false);
   const [prefixTouched, setPrefixTouched] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const resetForm = () => {
+    setName("");
+    setDescription("");
+    setTaskPrefix("");
+    setPrefixTouched(false);
+    setIsPrefixManual(false);
+    setAccentColor(ACCENT_COLORS[0]);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setName(val);
+    if (!isPrefixManual) {
+      setTaskPrefix(generatePrefixFromName(val));
+    }
+  };
 
   const handlePrefixChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 6);
     setTaskPrefix(raw);
     setPrefixTouched(true);
+    setIsPrefixManual(true);
+  };
+
+  const handleResetToAuto = () => {
+    setIsPrefixManual(false);
+    setTaskPrefix(generatePrefixFromName(name));
   };
 
   const isPrefixValid = taskPrefix.length >= 2 && taskPrefix.length <= 6 && /^[A-Z]{2,6}$/.test(taskPrefix);
@@ -60,11 +106,7 @@ export default function CreateBoardModal({ open, onClose, onCreateBoard }: Creat
     // If caller provided an optimistic handler, delegate immediately and dismiss
     if (onCreateBoard) {
       onCreateBoard(boardData);
-      setName("");
-      setDescription("");
-      setTaskPrefix("");
-      setPrefixTouched(false);
-      setAccentColor(ACCENT_COLORS[0]);
+      resetForm();
       onClose();
       return;
     }
@@ -76,11 +118,7 @@ export default function CreateBoardModal({ open, onClose, onCreateBoard }: Creat
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("boards-updated"));
       }
-      setName("");
-      setDescription("");
-      setTaskPrefix("");
-      setPrefixTouched(false);
-      setAccentColor(ACCENT_COLORS[0]);
+      resetForm();
       onClose();
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "Failed to create board";
@@ -91,7 +129,7 @@ export default function CreateBoardModal({ open, onClose, onCreateBoard }: Creat
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
       <DialogContent className="bg-surface-lowest border-outline-variant rounded-xl max-w-md p-0 overflow-hidden">
         <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: accentColor }} />
 
@@ -110,7 +148,7 @@ export default function CreateBoardModal({ open, onClose, onCreateBoard }: Creat
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={handleNameChange}
               placeholder="e.g. Q4 Marketing Launch"
               className="w-full bg-surface-lowest border border-outline-variant rounded-lg px-3 py-2.5 font-[family-name:var(--font-body)] text-[14px] text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-colors"
               required
@@ -121,15 +159,34 @@ export default function CreateBoardModal({ open, onClose, onCreateBoard }: Creat
           {/* Task Prefix */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="font-[family-name:var(--font-mono)] text-[12px] text-on-surface-variant uppercase tracking-wider block">
-                Task Prefix <span className="text-error">*</span>
-              </label>
+              <div className="flex items-center gap-2">
+                <label className="font-[family-name:var(--font-mono)] text-[12px] text-on-surface-variant uppercase tracking-wider block">
+                  Task Prefix <span className="text-error">*</span>
+                </label>
+                {taskPrefix && !isPrefixManual && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded font-[family-name:var(--font-mono)] font-medium">
+                    <Sparkles size={10} />
+                    Auto
+                  </span>
+                )}
+                {isPrefixManual && (
+                  <button
+                    type="button"
+                    onClick={handleResetToAuto}
+                    title="Reset to auto-generated prefix"
+                    className="inline-flex items-center gap-1 text-[10px] text-on-surface-variant hover:text-primary transition-colors bg-surface-low border border-outline-variant hover:border-primary/40 px-1.5 py-0.5 rounded font-[family-name:var(--font-mono)] cursor-pointer"
+                  >
+                    <RotateCcw size={10} />
+                    Reset to auto
+                  </button>
+                )}
+              </div>
               <span className="font-[family-name:var(--font-mono)] text-[11px] text-primary font-medium">
                 Preview: {taskPrefix ? `${taskPrefix}-1` : "TSK-1"}
               </span>
             </div>
             <p className="text-[12px] text-on-surface-variant font-[family-name:var(--font-body)]">
-              Used to generate task IDs, like TSK-142.
+              Used to generate task IDs, like {taskPrefix ? `${taskPrefix}-142` : "TSK-142"}.
             </p>
             <input
               type="text"
@@ -195,7 +252,7 @@ export default function CreateBoardModal({ open, onClose, onCreateBoard }: Creat
           <div className="flex flex-row items-center justify-end gap-3 pt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 rounded-lg border border-outline-variant font-[family-name:var(--font-body)] text-[14px] font-medium text-on-surface hover:bg-surface-low transition-colors cursor-pointer"
             >
               Cancel
