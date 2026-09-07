@@ -5,7 +5,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useIsPresent } from "framer-motion";
 import { Plus, MoreHorizontal, LayoutDashboard, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task, TaskList, BoardMember, Label } from "@/lib/types";
@@ -102,6 +102,7 @@ export default function KanbanColumn({
   disabled = false,
   onTaskDeleted,
 }: KanbanColumnProps) {
+  const isPresent = useIsPresent();
   const listTheme = getListTheme(list.name);
   const taskIds = tasks.map((t) => t.id);
 
@@ -159,18 +160,25 @@ export default function KanbanColumn({
       style={style}
       exit={{
         opacity: 0,
-        y: 12,
-        transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
+        width: 0,
+        minWidth: 0,
+        transition: {
+          opacity: { duration: 0.16, ease: "easeOut" },
+          width: { duration: 0.28, ease: [0.16, 1, 0.3, 1] },
+        },
       }}
-      className="w-[85vw] sm:w-[300px] md:w-[320px] shrink-0 h-full min-h-0 snap-center md:snap-align-none"
+      className={cn(
+        "w-[85vw] sm:w-[300px] md:w-[320px] shrink-0 h-full min-h-0 overflow-hidden",
+        isPresent ? "snap-center md:snap-align-none" : "pointer-events-none"
+      )}
     >
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 12 }}
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        exit={{ opacity: 0, y: 8 }}
+        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
-          "w-full h-full min-h-0 flex flex-col rounded-2xl border shadow-xs relative overflow-hidden transition-colors border-outline-variant/40",
+          "w-[85vw] sm:w-[300px] md:w-[320px] h-full min-h-0 flex flex-col rounded-2xl border shadow-xs relative overflow-hidden transition-colors border-outline-variant/40",
           listTheme.bg,
           isPending && "border-primary/50 shadow-md ring-1 ring-primary/25"
         )}

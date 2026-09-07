@@ -1279,25 +1279,40 @@ export default function BoardKanbanPage() {
             const prevLists = [...taskLists];
             const prevTasks = [...tasks];
 
-            // 1. If deleted list is currently active on mobile, find neighbor and re-anchor smoothly
+            // 1. If deleted list is currently active on mobile, re-anchor smoothly
             const targetIndex = uniqueTaskLists.findIndex((l) => l.id === target.id);
             const remainingLists = uniqueTaskLists.filter((l) => l.id !== target.id);
-            if (activeMobileColumnId === target.id || !activeMobileColumnId) {
+            const isTargetActive = activeMobileColumnId === target.id || !activeMobileColumnId;
+
+            let nextActiveId: string | null = null;
+            if (isTargetActive && remainingLists.length > 0) {
               const newActiveList =
-                remainingLists[Math.max(0, targetIndex - 1)] ||
-                remainingLists[0] ||
-                null;
-              if (newActiveList) {
-                setActiveMobileColumnId(newActiveList.id);
-                scrollToColumn(newActiveList.id);
-              }
+                targetIndex > 0
+                  ? remainingLists[targetIndex - 1]
+                  : remainingLists[0];
+              nextActiveId = newActiveList.id;
+              setActiveMobileColumnId(nextActiveId);
             }
 
-            // 2. Immediately trigger optimistic deletion with fade-out
-            setTaskLists(prev => prev.filter(l => l.id !== target.id));
-            setTasks(prev => prev.filter(t => t.listId !== target.id));
+            // Lock programmatic scrolling so centroid scroll listener doesn't fire erratic updates during collapse
+            isScrollingProgrammatically.current = true;
+            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+            scrollTimeoutRef.current = setTimeout(() => {
+              isScrollingProgrammatically.current = false;
+            }, 700);
 
-            // 3. Perform API call in background
+            // 2. Immediately trigger optimistic deletion with fade-out
+            setTaskLists((prev) => prev.filter((l) => l.id !== target.id));
+            setTasks((prev) => prev.filter((t) => t.listId !== target.id));
+
+            // 3. Keep scroll cleanly aligned with the active column after layout collapse begins
+            if (nextActiveId) {
+              setTimeout(() => {
+                scrollToColumn(nextActiveId);
+              }, 120);
+            }
+
+            // 4. Perform API call in background
             try {
               await deleteTaskList(target.id);
               toast.success(`List "${target.name}" deleted.`);
@@ -1365,9 +1380,9 @@ export default function BoardKanbanPage() {
           try {
             const created = await createTaskList(boardId, listName);
             setTaskLists((prev) => {
-              // If WebSocket already arrived and inserted the list, remove the temp one
+              // If WebSocket already arrived and reconciled the list, remove any separate temp placeholder
               if (prev.some((l) => l.id === created.id)) {
-                return prev.filter((l) => l.id !== tempId && l.clientKey !== clientKey);
+                return prev.filter((l) => l.id !== tempId);
               }
               // Otherwise swap temp placeholder with the real server entity, preserving clientKey
               return prev.map((l) =>
@@ -1377,7 +1392,7 @@ export default function BoardKanbanPage() {
             toast.success(`List "${listName}" created!`);
           } catch {
             // Revert optimistic insertion on failure
-            setTaskLists((prev) => prev.filter((l) => l.id !== tempId && l.clientKey !== clientKey));
+            setTaskLists((prev) => prev.filter((l) => l.id !== tempId));
             toast.error(`Failed to create list "${listName}". Please try again.`);
           }
         }}
