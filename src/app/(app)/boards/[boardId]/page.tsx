@@ -31,6 +31,7 @@ import BoardMembersModal from "@/components/board/BoardMembersModal";
 import UserAvatar from "@/components/ui/UserAvatar";
 import BoardFilterBar, { type DueDateFilter } from "@/components/board/BoardFilterBar";
 import NotFoundState from "@/components/ui/NotFoundState";
+import BoardKanbanSkeleton from "@/components/board/BoardKanbanSkeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { triggerNavigationStart } from "@/components/layout/NavigationProgressBar";
 import type { Task, TaskList, Label, BoardMember, Board, Priority } from "@/lib/types";
@@ -175,7 +176,18 @@ export default function BoardKanbanPage() {
       );
     },
     onListCreated: (newList) => {
-      setTaskLists((prev) => (prev.some((l) => l.id === newList.id) ? prev : [...prev, newList]));
+      setTaskLists((prev) => {
+        if (prev.some((l) => l.id === newList.id)) return prev;
+        const tempIdx = prev.findIndex(
+          (l) => (l.id.startsWith("temp-") || l.clientKey) && l.name.toLowerCase() === newList.name.toLowerCase()
+        );
+        if (tempIdx !== -1) {
+          const updated = [...prev];
+          updated[tempIdx] = { ...newList, clientKey: prev[tempIdx].clientKey };
+          return updated;
+        }
+        return [...prev, newList];
+      });
     },
     onListRenamed: (renamedList) => {
       setTaskLists((prev) => prev.map((l) => (l.id === renamedList.id ? renamedList : l)));
@@ -794,7 +806,12 @@ export default function BoardKanbanPage() {
     });
   };
 
-  // Board not found state
+  // Loading skeleton state (prevents premature "board not found" flash)
+  if (loading) {
+    return <BoardKanbanSkeleton />;
+  }
+
+  // Board not found state (only shown if loading is complete and no board was found)
   if (!board) {
     return (
       <NotFoundState
@@ -966,41 +983,74 @@ export default function BoardKanbanPage() {
 
       {/* Mobile Column Segmented Pill Switcher (md:hidden) */}
       <div className="md:hidden shrink-0 px-3 py-2 bg-surface-low/80 border-b border-outline-variant/30 overflow-x-auto custom-scrollbar flex items-center gap-1.5 z-10 select-none">
-        {uniqueTaskLists.map((list) => {
-          const rawTasks = tasks.filter(t => t.listId === list.id);
-          const listTasks = filterTasks(rawTasks);
-          const listTheme = getListTheme(list.name);
-          const isActive = (activeMobileColumnId ?? uniqueTaskLists[0]?.id) === list.id;
+        <AnimatePresence>
+          {uniqueTaskLists.map((list) => {
+            const rawTasks = tasks.filter(t => t.listId === list.id);
+            const listTasks = filterTasks(rawTasks);
+            const listTheme = getListTheme(list.name);
+            const isActive = (activeMobileColumnId ?? uniqueTaskLists[0]?.id) === list.id;
+            const isPending = list.id.startsWith("temp-");
 
-          return (
-            <button
-              key={list.id}
-              id={`pill-${list.id}`}
-              type="button"
-              onClick={() => scrollToColumn(list.id)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-[family-name:var(--font-body)] transition-all shrink-0 cursor-pointer shadow-2xs active:scale-95",
-                isActive
-                  ? "bg-surface text-primary border border-primary/50 shadow-xs font-semibold ring-1 ring-primary/20"
-                  : "bg-surface-lowest/70 text-on-surface-variant hover:text-on-surface border border-outline-variant/30 hover:bg-surface font-medium"
-              )}
-            >
-              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", listTheme.dot)} />
-              <span className="truncate">{list.name}</span>
-              <span className={cn("px-1.5 py-0.2 rounded-full font-[family-name:var(--font-mono)] text-[9.5px]", listTheme.badge)}>
-                {listTasks.length}
-              </span>
-            </button>
-          );
-        })}
+            return (
+              <motion.button
+                key={list.clientKey || list.id}
+                id={`pill-${list.id}`}
+                type="button"
+                layout
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{
+                  opacity: 0,
+                  width: 0,
+                  paddingLeft: 0,
+                  paddingRight: 0,
+                  borderWidth: 0,
+                  transition: {
+                    opacity: { duration: 0.12, ease: "linear" },
+                    width: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
+                    paddingLeft: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
+                    paddingRight: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
+                  },
+                }}
+                transition={{
+                  layout: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
+                  duration: 0.2,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                onClick={() => scrollToColumn(list.id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-[family-name:var(--font-body)] shrink-0 cursor-pointer shadow-2xs active:scale-95 overflow-hidden whitespace-nowrap",
+                  isActive
+                    ? "bg-surface text-primary border border-primary/50 shadow-xs font-semibold ring-1 ring-primary/20"
+                    : "bg-surface-lowest/70 text-on-surface-variant hover:text-on-surface border border-outline-variant/30 hover:bg-surface font-medium",
+                  isPending && "border-primary/40 text-primary"
+                )}
+              >
+                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", listTheme.dot)} />
+                <span className="truncate">{list.name}</span>
+                {isPending ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping shrink-0" />
+                ) : (
+                  <span className={cn("px-1.5 py-0.2 rounded-full font-[family-name:var(--font-mono)] text-[9.5px]", listTheme.badge)}>
+                    {listTasks.length}
+                  </span>
+                )}
+              </motion.button>
+            );
+          })}
+        </AnimatePresence>
 
         {canCreateList && (
-          <button
+          <motion.button
+            layout
+            transition={{
+              layout: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
+            }}
             id="pill-add-list"
             type="button"
             onClick={() => scrollToColumn("add-list")}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-[family-name:var(--font-body)] transition-all shrink-0 cursor-pointer shadow-2xs active:scale-95 border border-dashed border-primary/40 text-primary hover:bg-primary/10",
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-[family-name:var(--font-body)] shrink-0 cursor-pointer shadow-2xs active:scale-95 border border-dashed border-primary/40 text-primary hover:bg-primary/10 whitespace-nowrap",
               activeMobileColumnId === "add-list"
                 ? "bg-primary/15 font-semibold ring-1 ring-primary/30"
                 : "bg-surface-lowest/70 font-medium"
@@ -1008,7 +1058,7 @@ export default function BoardKanbanPage() {
           >
             <Plus size={13} />
             <span>Add list</span>
-          </button>
+          </motion.button>
         )}
       </div>
 
@@ -1029,38 +1079,46 @@ export default function BoardKanbanPage() {
             items={uniqueTaskLists.map((l) => l.id)}
             strategy={horizontalListSortingStrategy}
           >
-            {uniqueTaskLists.map((list) => {
-              const rawTasks = tasks
-                .filter((t) => t.listId === list.id)
-                .sort((a, b) => a.position - b.position);
-              const columnTasks = filterTasks(rawTasks);
-              const isLastList = list.name === "Done";
+            <AnimatePresence>
+              {uniqueTaskLists.map((list) => {
+                const rawTasks = tasks
+                  .filter((t) => t.listId === list.id)
+                  .sort((a, b) => a.position - b.position);
+                const columnTasks = filterTasks(rawTasks);
+                const isLastList = list.name === "Done";
 
-              return (
-                <KanbanColumn
-                  key={list.id}
-                  list={list}
-                  tasks={columnTasks}
-                  allTaskLists={uniqueTaskLists}
-                  boardId={boardId}
-                  isLastList={isLastList}
-                  canCreateTask={canCreateTask}
-                  canEditList={canEditList}
-                  addingToList={addingToList}
-                  setAddingToList={setAddingToList}
-                  setListToRename={setListToRename}
-                  setListToDelete={setListToDelete}
-                  onTaskClick={(taskId) => {
-                    triggerNavigationStart();
-                    router.push(`/boards/${boardId}/tasks/${taskId}`);
-                  }}
-                  members={members}
-                  labels={labels}
-                  activeFilterCount={activeFilterCount}
-                  disabled={!isDesktop || !canMoveTask}
-                />
-              );
-            })}
+                return (
+                  <KanbanColumn
+                    key={list.clientKey || list.id}
+                    list={list}
+                    tasks={columnTasks}
+                    allTaskLists={uniqueTaskLists}
+                    boardId={boardId}
+                    isLastList={isLastList}
+                    canCreateTask={canCreateTask}
+                    canEditList={canEditList}
+                    addingToList={addingToList}
+                    setAddingToList={setAddingToList}
+                    setListToRename={setListToRename}
+                    setListToDelete={setListToDelete}
+                    onTaskClick={(taskId) => {
+                      triggerNavigationStart();
+                      router.push(`/boards/${boardId}/tasks/${taskId}`);
+                    }}
+                    onTaskCreated={(newTask) => {
+                      setTasks((prev) => (prev.some((t) => t.id === newTask.id) ? prev : [...prev, newTask]));
+                    }}
+                    onTaskDeleted={(taskId) => {
+                      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+                    }}
+                    members={members}
+                    labels={labels}
+                    activeFilterCount={activeFilterCount}
+                    disabled={!isDesktop || !canMoveTask}
+                  />
+                );
+              })}
+            </AnimatePresence>
           </SortableContext>
 
           {/* Add List Column / Snap Target */}
@@ -1217,13 +1275,37 @@ export default function BoardKanbanPage() {
         onClose={() => setListToDelete(null)}
         onConfirm={async () => {
           if (listToDelete) {
+            const target = listToDelete;
+            const prevLists = [...taskLists];
+            const prevTasks = [...tasks];
+
+            // 1. If deleted list is currently active on mobile, find neighbor and re-anchor smoothly
+            const targetIndex = uniqueTaskLists.findIndex((l) => l.id === target.id);
+            const remainingLists = uniqueTaskLists.filter((l) => l.id !== target.id);
+            if (activeMobileColumnId === target.id || !activeMobileColumnId) {
+              const newActiveList =
+                remainingLists[Math.max(0, targetIndex - 1)] ||
+                remainingLists[0] ||
+                null;
+              if (newActiveList) {
+                setActiveMobileColumnId(newActiveList.id);
+                scrollToColumn(newActiveList.id);
+              }
+            }
+
+            // 2. Immediately trigger optimistic deletion with fade-out
+            setTaskLists(prev => prev.filter(l => l.id !== target.id));
+            setTasks(prev => prev.filter(t => t.listId !== target.id));
+
+            // 3. Perform API call in background
             try {
-              await deleteTaskList(listToDelete.id);
-              setTaskLists(prev => prev.filter(l => l.id !== listToDelete.id));
-              setTasks(prev => prev.filter(t => t.listId !== listToDelete.id));
-              toast.success(`List "${listToDelete.name}" deleted.`);
+              await deleteTaskList(target.id);
+              toast.success(`List "${target.name}" deleted.`);
             } catch {
-              toast.error(`Failed to delete list "${listToDelete.name}".`);
+              // Revert on failure
+              setTaskLists(prevLists);
+              setTasks(prevTasks);
+              toast.error(`Failed to delete list "${target.name}". Please try again.`);
             }
           }
         }}
@@ -1259,12 +1341,44 @@ export default function BoardKanbanPage() {
         open={showAddListModal}
         onClose={() => setShowAddListModal(false)}
         onSubmit={async (listName) => {
+          const tempId = `temp-${Date.now()}`;
+          const clientKey = `list-client-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          const maxPos = taskLists.reduce((max, l) => Math.max(max, l.position), 0);
+          const optimisticList: TaskList = {
+            id: tempId,
+            boardId,
+            name: listName,
+            position: maxPos + 1000,
+            createdAt: new Date().toISOString(),
+            clientKey,
+          };
+
+          // 1. Immediately insert optimistic column
+          setTaskLists((prev) => [...prev, optimisticList]);
+
+          // 2. Smoothly scroll to the new column
+          setTimeout(() => {
+            scrollToColumn(tempId);
+          }, 60);
+
+          // 3. Send API call in background
           try {
             const created = await createTaskList(boardId, listName);
-            setTaskLists(prev => (prev.some(l => l.id === created.id) ? prev : [...prev, created]));
+            setTaskLists((prev) => {
+              // If WebSocket already arrived and inserted the list, remove the temp one
+              if (prev.some((l) => l.id === created.id)) {
+                return prev.filter((l) => l.id !== tempId && l.clientKey !== clientKey);
+              }
+              // Otherwise swap temp placeholder with the real server entity, preserving clientKey
+              return prev.map((l) =>
+                l.id === tempId || l.clientKey === clientKey ? { ...created, clientKey } : l
+              );
+            });
             toast.success(`List "${listName}" created!`);
           } catch {
-            toast.error(`Failed to create list "${listName}".`);
+            // Revert optimistic insertion on failure
+            setTaskLists((prev) => prev.filter((l) => l.id !== tempId && l.clientKey !== clientKey));
+            toast.error(`Failed to create list "${listName}". Please try again.`);
           }
         }}
         title="Add New List"

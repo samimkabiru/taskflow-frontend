@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import DatePicker from "@/components/ui/DatePicker";
 import UserAvatar from "@/components/ui/UserAvatar";
-import type { Priority, User, Label } from "@/lib/types";
+import type { Priority, User, Label, Task } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface QuickAddTaskProps {
@@ -23,7 +23,7 @@ interface QuickAddTaskProps {
   boardId?: string;
   listName?: string;
   onCancel: () => void;
-  onAdded: () => void;
+  onAdded: (createdTask?: Task) => void;
 }
 
 const PRIORITIES: { value: Priority; label: string; color: string }[] = [
@@ -80,10 +80,19 @@ export default function QuickAddTask({
         assigneeId: assigneeId || undefined,
         priority,
       });
+      let finalTask = created;
       if (selectedLabelId) {
-        await assignLabelsToTask(created.id, [selectedLabelId]);
+        try {
+          await assignLabelsToTask(created.id, [selectedLabelId]);
+          const assignedLabel = labels.find((l) => l.id === selectedLabelId);
+          finalTask = {
+            ...created,
+            labelIds: [selectedLabelId],
+            labels: assignedLabel ? [assignedLabel] : [],
+          };
+        } catch {}
       }
-      onAdded();
+      onAdded(finalTask);
     } catch {
       // Handled
     } finally {

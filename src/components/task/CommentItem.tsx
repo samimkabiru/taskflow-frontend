@@ -67,8 +67,8 @@ export default function CommentItem({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.18, ease: "easeOut" }}
+      exit={{ opacity: 0, y: 8 }}
+      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
       className="flex gap-2.5 sm:gap-3 items-start group/comment relative shrink-0"
       onContextMenu={(e) => {
         e.preventDefault();

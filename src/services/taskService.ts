@@ -30,12 +30,13 @@ export interface MoveTaskInput {
 // ─── DTO Converters ──────────────────────────────────────────────────────────
 
 export function mapTaskListDto(dto: TaskListDto): TaskList {
+  const raw = dto as unknown as Record<string, unknown>;
   return {
-    id: dto.id,
-    boardId: dto.boardId,
-    name: dto.title,
-    position: dto.position,
-    createdAt: dto.createdAt,
+    id: dto.id || (raw.id as string) || "",
+    boardId: dto.boardId || (raw.boardId as string) || (raw.board_id as string) || "",
+    name: dto.title || (raw.name as string) || (raw.title as string) || "Untitled List",
+    position: typeof dto.position === "number" ? dto.position : (Number(raw.position) || 0),
+    createdAt: dto.createdAt || (raw.createdAt as string) || (raw.created_at as string) || new Date().toISOString(),
   };
 }
 
@@ -98,8 +99,8 @@ export function mapTaskDto(dto: TaskDto): Task {
     dueDate: dto.dueDate || undefined,
     assigneeId: dto.assigneeId || (raw.assignee_id as string) || assignee?.id || undefined,
     assignee,
-    listId: dto.taskListId,
-    boardId: dto.boardId,
+    listId: dto.taskListId || (raw.taskListId as string) || (raw.listId as string) || (raw.task_list_id as string) || "",
+    boardId: dto.boardId || (raw.boardId as string) || (raw.board_id as string) || "",
     labelIds: labels.map((l) => l.id),
     labels,
     position: dto.position,

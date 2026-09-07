@@ -3,6 +3,7 @@
 import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import TaskCard from "./TaskCard";
 import type { Task, TaskList, BoardMember, Label } from "@/lib/types";
@@ -16,6 +17,7 @@ interface SortableTaskCardProps {
   members?: BoardMember[];
   allLabels?: Label[];
   disabled?: boolean;
+  onTaskDeleted?: (taskId: string) => void;
 }
 
 export default function SortableTaskCard({
@@ -27,6 +29,7 @@ export default function SortableTaskCard({
   members,
   allLabels,
   disabled = false,
+  onTaskDeleted,
 }: SortableTaskCardProps) {
   const {
     attributes,
@@ -63,9 +66,14 @@ export default function SortableTaskCard({
   }
 
   return (
-    <div
+    <motion.div
       ref={setNodeRef}
       style={style}
+      exit={{
+        opacity: 0,
+        y: 8,
+        transition: { duration: 0.18, ease: [0.16, 1, 0.3, 1] },
+      }}
       {...(disabled ? {} : attributes)}
       {...(disabled ? {} : listeners)}
       className={cn(
@@ -81,7 +89,8 @@ export default function SortableTaskCard({
         isDone={isDone}
         members={members}
         allLabels={allLabels}
+        onDelete={onTaskDeleted}
       />
-    </div>
+    </motion.div>
   );
 }

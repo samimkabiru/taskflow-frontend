@@ -5,6 +5,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { motion, AnimatePresence } from "framer-motion";
 import { Plus, MoreHorizontal, LayoutDashboard, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task, TaskList, BoardMember, Label } from "@/lib/types";
@@ -50,10 +51,12 @@ interface KanbanColumnProps {
   setListToRename: (item: { id: string; name: string } | null) => void;
   setListToDelete: (item: { id: string; name: string } | null) => void;
   onTaskClick: (taskId: string) => void;
+  onTaskCreated?: (task: Task) => void;
   members: BoardMember[];
   labels: Label[];
   activeFilterCount: number;
   disabled?: boolean;
+  onTaskDeleted?: (taskId: string) => void;
 }
 
 function ColumnBottomDropZone({ listId, disabled }: { listId: string; disabled: boolean }) {
@@ -92,13 +95,17 @@ export default function KanbanColumn({
   setListToRename,
   setListToDelete,
   onTaskClick,
+  onTaskCreated,
   members,
   labels,
   activeFilterCount,
   disabled = false,
+  onTaskDeleted,
 }: KanbanColumnProps) {
   const listTheme = getListTheme(list.name);
   const taskIds = tasks.map((t) => t.id);
+
+  const isPending = list.id.startsWith("temp-");
 
   // Column-level sortable
   const {
@@ -110,7 +117,7 @@ export default function KanbanColumn({
     isDragging: isColDragging,
   } = useSortable({
     id: list.id,
-    disabled: disabled || !canEditList,
+    disabled: disabled || !canEditList || isPending,
     data: {
       type: "column",
       list,
@@ -120,7 +127,7 @@ export default function KanbanColumn({
   // Dedicated droppable node for when column has 0 tasks
   const { setNodeRef: setEmptyDropRef, isOver: isEmptyOver } = useDroppable({
     id: `droppable-empty-${list.id}`,
-    disabled: disabled || tasks.length > 0,
+    disabled: disabled || tasks.length > 0 || isPending,
     data: {
       type: "empty-column",
       listId: list.id,
@@ -143,51 +150,71 @@ export default function KanbanColumn({
     );
   }
 
-  const isColumnDragEnabled = !disabled && canEditList;
+  const isColumnDragEnabled = !disabled && canEditList && !isPending;
 
   return (
-    <div
+    <motion.div
       ref={setColRef}
       id={`col-${list.id}`}
       style={style}
-      className={cn(
-        "w-[85vw] sm:w-[300px] md:w-[320px] shrink-0 flex flex-col h-full min-h-0 rounded-2xl border shadow-xs relative overflow-hidden transition-colors snap-center md:snap-align-none border-outline-variant/40",
-        listTheme.bg
-      )}
+      exit={{
+        opacity: 0,
+        y: 12,
+        transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
+      }}
+      className="w-[85vw] sm:w-[300px] md:w-[320px] shrink-0 h-full min-h-0 snap-center md:snap-align-none"
     >
-      {/* Coloured top accent line (3px) */}
-      <div className={cn("h-[3px] w-full shrink-0", listTheme.bar)} />
-
-      {/* Column Header (serves as drag handle for columns on desktop) */}
-      <div
-        {...(isColumnDragEnabled ? colAttributes : {})}
-        {...(isColumnDragEnabled ? colListeners : {})}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 12 }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
-          "flex items-center justify-between px-3.5 py-3 shrink-0 border-b border-outline-variant/20 bg-surface/30 select-none",
-          isColumnDragEnabled ? "cursor-grab active:cursor-grabbing" : ""
+          "w-full h-full min-h-0 flex flex-col rounded-2xl border shadow-xs relative overflow-hidden transition-colors border-outline-variant/40",
+          listTheme.bg,
+          isPending && "border-primary/50 shadow-md ring-1 ring-primary/25"
         )}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          {isColumnDragEnabled && (
-            <span className="hidden md:inline-flex text-outline/60 hover:text-outline shrink-0 -ml-1">
-              <GripVertical size={13} />
-            </span>
+        {/* Coloured top accent line (3px) */}
+        <div className={cn("h-[3px] w-full shrink-0 transition-all", listTheme.bar, isPending && "animate-pulse")} />
+
+        {/* Column Header (serves as drag handle for columns on desktop) */}
+        <div
+          {...(isColumnDragEnabled ? colAttributes : {})}
+          {...(isColumnDragEnabled ? colListeners : {})}
+          className={cn(
+            "flex items-center justify-between px-3.5 py-3 shrink-0 border-b border-outline-variant/20 bg-surface/30 select-none",
+            isColumnDragEnabled ? "cursor-grab active:cursor-grabbing" : ""
           )}
-          <span className={cn("w-2 h-2 rounded-full shrink-0", listTheme.dot)} />
-          <h3 className="font-[family-name:var(--font-heading)] text-[15px] font-semibold text-on-surface truncate">
-            {list.name}
-          </h3>
-          <span className={cn("px-2 py-0.5 rounded-full font-[family-name:var(--font-mono)] text-[10px]", listTheme.badge)}>
-            {tasks.length}
-          </span>
-        </div>
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            {isColumnDragEnabled && (
+              <span className="hidden md:inline-flex text-outline/60 hover:text-outline shrink-0 -ml-1">
+                <GripVertical size={13} />
+              </span>
+            )}
+            <span className={cn("w-2 h-2 rounded-full shrink-0", listTheme.dot)} />
+            <h3 className="font-[family-name:var(--font-heading)] text-[15px] font-semibold text-on-surface truncate">
+              {list.name}
+            </h3>
+            {isPending ? (
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full animate-pulse font-[family-name:var(--font-mono)] shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping shrink-0" />
+                Saving...
+              </span>
+            ) : (
+              <span className={cn("px-2 py-0.5 rounded-full font-[family-name:var(--font-mono)] text-[10px]", listTheme.badge)}>
+                {tasks.length}
+              </span>
+            )}
+          </div>
 
         <div
           className="flex items-center gap-1 shrink-0"
           onPointerDown={(e) => e.stopPropagation()}
         >
           {/* Header Quick Add Button */}
-          {canCreateTask && !isLastList && (
+          {canCreateTask && !isLastList && !isPending && (
             <SimpleTooltip content={`Add task to ${list.name}`}>
               <button
                 type="button"
@@ -203,7 +230,7 @@ export default function KanbanColumn({
             </SimpleTooltip>
           )}
 
-          {canEditList && (
+          {canEditList && !isPending && (
             <DropdownMenu>
               <DropdownMenuTrigger
                 className="text-on-surface-variant hover:text-on-surface transition-colors p-1.5 rounded-lg hover:bg-surface-container cursor-pointer"
@@ -237,7 +264,10 @@ export default function KanbanColumn({
             listName={list.name}
             boardId={boardId}
             onCancel={() => setAddingToList(null)}
-            onAdded={() => {
+            onAdded={(createdTask) => {
+              if (createdTask && onTaskCreated) {
+                onTaskCreated(createdTask);
+              }
               setAddingToList(null);
               toast.success("Task created!");
             }}
@@ -255,51 +285,77 @@ export default function KanbanColumn({
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
           {tasks.length === 0 && addingToList !== list.id ? (
             <div
-              ref={setEmptyDropRef}
+              ref={isPending ? undefined : setEmptyDropRef}
               className={cn(
-                "flex flex-col items-center justify-center py-8 px-3 text-center rounded-xl border border-dashed transition-colors my-auto",
-                isEmptyOver ? "border-primary bg-primary/10" : "border-outline-variant/40 bg-surface-low/20"
+                "flex flex-col items-center justify-center py-8 px-3 text-center rounded-xl border border-dashed transition-all my-auto",
+                isPending
+                  ? "border-primary/40 bg-surface-low/30 shadow-2xs"
+                  : isEmptyOver
+                  ? "border-primary bg-primary/10"
+                  : "border-outline-variant/40 bg-surface-low/20"
               )}
             >
               <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center mb-1.5 text-outline">
-                <LayoutDashboard size={14} />
+                {isPending ? (
+                  <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                ) : (
+                  <LayoutDashboard size={14} />
+                )}
               </div>
-              <p className="font-[family-name:var(--font-body)] text-[12.5px] text-on-surface-variant mb-0.5 font-medium">
-                {isEmptyOver ? "Drop task here" : "No tasks yet"}
+              <p className="font-[family-name:var(--font-body)] text-[12.5px] text-on-surface-variant mb-0.5 font-medium transition-colors">
+                {isPending ? "Creating list..." : isEmptyOver ? "Drop task here" : "No tasks yet"}
               </p>
-              <p className="font-[family-name:var(--font-body)] text-[11px] text-outline mb-2">
-                {activeFilterCount > 0 ? "Try adjusting your filters" : isLastList ? "Drop completed tasks here" : "Drop tasks here or create one"}
+              <p className="font-[family-name:var(--font-body)] text-[11px] text-outline mb-2 transition-colors">
+                {isPending
+                  ? "Connecting to workspace"
+                  : activeFilterCount > 0
+                  ? "Try adjusting your filters"
+                  : isLastList
+                  ? "Drop completed tasks here"
+                  : "Drop tasks here or create one"}
               </p>
               {canCreateTask && !isLastList && !isEmptyOver && (
-                <button
-                  type="button"
-                  onClick={() => setAddingToList(list.id)}
-                  className="inline-flex items-center gap-1 text-[11.5px] font-medium text-primary hover:underline cursor-pointer"
-                >
-                  <Plus size={13} /> Add task
-                </button>
+                <div className="h-6 flex items-center justify-center">
+                  {isPending ? (
+                    <span className="text-[11px] text-outline/50 font-mono tracking-tight animate-pulse">
+                      synchronizing...
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAddingToList(list.id)}
+                      className="inline-flex items-center gap-1 text-[11.5px] font-medium text-primary hover:underline cursor-pointer"
+                    >
+                      <Plus size={13} /> Add task
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           ) : (
             <>
-              {tasks.map((task) => (
-                <SortableTaskCard
-                  key={task.id}
-                  task={task}
-                  onClick={() => onTaskClick(task.id)}
-                  taskLists={allTaskLists}
-                  currentListId={list.id}
-                  isDone={isLastList}
-                  members={members}
-                  allLabels={labels}
-                  disabled={disabled}
-                />
-              ))}
-              <ColumnBottomDropZone listId={list.id} disabled={disabled} />
+              <AnimatePresence>
+                {tasks.map((task) => (
+                  <SortableTaskCard
+                    key={task.id}
+                    task={task}
+                    onClick={() => onTaskClick(task.id)}
+                    taskLists={allTaskLists}
+                    currentListId={list.id}
+                    isDone={isLastList}
+                    members={members}
+                    allLabels={labels}
+                    disabled={disabled || isPending}
+                    onTaskDeleted={onTaskDeleted}
+                  />
+                ))}
+              </AnimatePresence>
+              <ColumnBottomDropZone listId={list.id} disabled={disabled || isPending} />
             </>
           )}
         </SortableContext>
       </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

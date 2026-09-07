@@ -78,6 +78,7 @@ export interface TaskList {
   name: string;
   position: number;
   createdAt: string;
+  clientKey?: string;
 }
 
 export interface Task {

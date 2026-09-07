@@ -600,6 +600,17 @@ export default function ActivityFeedPage() {
   const endItem = Math.min(currentPage * pageSize, total);
   const pageNumbers = getPageNumbers(currentPage, totalPages);
 
+  if (loading) {
+    return (
+      <div className="flex-1 h-full flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <p className="font-[family-name:var(--font-mono)] text-[12px] text-outline">Loading activity feed...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!board) {
     return (
       <NotFoundState

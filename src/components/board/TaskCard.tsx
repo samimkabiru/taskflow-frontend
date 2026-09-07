@@ -23,6 +23,7 @@ interface TaskCardProps {
   isDone?: boolean;
   members?: BoardMember[];
   allLabels?: Label[];
+  onDelete?: (taskId: string) => void;
 }
 
 const PRIORITY_CONFIG: Record<Priority, { color: string; label: string; dot: string }> = {
@@ -39,7 +40,7 @@ const PRIORITY_STRIPE: Record<Priority, string> = {
   URGENT: "var(--color-error)",
 };
 
-export default function TaskCard({ task, onClick, taskLists, currentListId, isDone, members, allLabels }: TaskCardProps) {
+export default function TaskCard({ task, onClick, taskLists, currentListId, isDone, members, allLabels, onDelete }: TaskCardProps) {
   const { getUserBoardRole } = useAuth();
   const role = getUserBoardRole(task.boardId);
   const canMove = role ? hasPermission(role, "MOVE_TASK") : false;
@@ -92,12 +93,13 @@ export default function TaskCard({ task, onClick, taskLists, currentListId, isDo
         opacity: 1, y: 0,
         backgroundColor: highlight ? "rgba(110,100,224,0.12)" : "var(--color-surface-lowest)",
       }}
-      exit={{ opacity: 0, scale: 0.95 }}
+      exit={{ opacity: 0, y: 8 }}
       whileHover={{ y: -2, transition: { duration: 0.12 } }}
       whileTap={{ scale: 0.98 }}
       transition={{
         layout: { type: "spring", stiffness: 380, damping: 30 },
-        opacity: { duration: 0.18 },
+        opacity: { duration: 0.18, ease: [0.16, 1, 0.3, 1] },
+        y: { duration: 0.18, ease: [0.16, 1, 0.3, 1] },
         backgroundColor: { duration: 1.8 },
       }}
       className="relative flex flex-col overflow-hidden rounded-xl border border-outline-variant/60 bg-surface-lowest shadow-xs hover:shadow-md hover:border-outline-variant cursor-pointer group shrink-0 transition-shadow"
@@ -262,7 +264,15 @@ export default function TaskCard({ task, onClick, taskLists, currentListId, isDo
       <ConfirmDialog
         open={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={async () => { await deleteTask(task.id); toast.success(`Deleted "${task.title}"`); }}
+        onConfirm={async () => {
+          onDelete?.(task.id);
+          try {
+            await deleteTask(task.id);
+            toast.success(`Deleted "${task.title}"`);
+          } catch {
+            toast.error(`Failed to delete "${task.title}".`);
+          }
+        }}
         title="Delete Task"
         description={`This permanently deletes '${task.title}'. This cannot be undone.`}
         confirmText="Delete"

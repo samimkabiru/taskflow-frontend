@@ -89,16 +89,21 @@ export function useBoardWebSocket(
         } catch {}
       }
 
+      const rawWs = (WS_BASE_URL || "ws://localhost:8080").replace(/\/+$/, "");
+      const brokerURL = rawWs.endsWith("/ws") ? rawWs : `${rawWs}/ws`;
+
       const client = new Client({
-        brokerURL: `${WS_BASE_URL}/ws`,
+        brokerURL,
         connectHeaders: {
           Authorization: `Bearer ${token}`,
         },
         reconnectDelay: 5000,
         heartbeatIncoming: 10000,
         heartbeatOutgoing: 10000,
-        debug: () => {
-          // Silent in production
+        debug: (msg) => {
+          if (process.env.NODE_ENV !== "production") {
+            console.debug("[STOMP]", msg);
+          }
         },
       });
 
@@ -310,8 +315,16 @@ export function useBoardWebSocket(
         });
       };
 
-      client.onStompError = () => {
-        // Silently handle stomp level errors
+      client.onStompError = (frame) => {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[STOMP Broker Error]", frame.headers["message"], frame.body);
+        }
+      };
+
+      client.onWebSocketError = (event) => {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[STOMP WebSocket Transport Error]", event);
+        }
       };
 
       client.activate();
