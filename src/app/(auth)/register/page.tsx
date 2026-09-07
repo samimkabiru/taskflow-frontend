@@ -11,7 +11,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { GoogleLogin } from "@react-oauth/google";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 export default function RegisterPage() {
   const { register, loginWithGoogle, user, isLoading } = useAuth();
@@ -119,44 +119,30 @@ export default function RegisterPage() {
       <div className="relative rounded-2xl border border-outline-variant/60 bg-surface/85 dark:bg-surface-low/85 backdrop-blur-xl shadow-xl p-6 sm:p-8 flex flex-col gap-5">
 
         {/* Google Sign-In */}
-        <div className="w-full flex justify-center min-h-[40px] [&>div]:!w-full [&_iframe]:!w-full">
-          {isGoogleLoading ? (
-            <div className="w-full h-10 px-4 rounded-full border border-outline-variant/60 bg-surface-low/80 dark:bg-surface-high/60 flex items-center justify-center gap-2.5 text-on-surface-variant font-[family-name:var(--font-body)] text-[13.5px] font-medium shadow-2xs select-none">
-              <Loader2 size={16} className="animate-spin text-primary shrink-0" />
-              <span>Signing you in with Google…</span>
-            </div>
-          ) : (
-            <div className="w-full rounded-full overflow-hidden">
-              <GoogleLogin
-                onSuccess={async (credentialResponse) => {
-                  const idToken = credentialResponse.credential;
-                  if (!idToken) {
-                    toast.error("Google sign-in failed, please try again");
-                    return;
-                  }
-                  setIsGoogleLoading(true);
-                  try {
-                    await loginWithGoogle(idToken);
-                    toast.success("Welcome to TaskFlow!", { duration: 4000 });
-                    router.replace("/boards");
-                  } catch {
-                    setIsGoogleLoading(false);
-                    toast.error("Google sign-in failed, please try again");
-                  }
-                }}
-                onError={() => {
-                  setIsGoogleLoading(false);
-                  toast.error("Google sign-in was unsuccessful. Please try again.");
-                }}
-                theme="outline"
-                size="large"
-                shape="pill"
-                text="continue_with"
-                width="100%"
-              />
-            </div>
-          )}
-        </div>
+        <GoogleSignInButton
+          isLoading={isGoogleLoading}
+          text="Continue with Google"
+          onSuccess={async (credentialResponse) => {
+            const idToken = credentialResponse.credential;
+            if (!idToken) {
+              toast.error("Google sign-in failed, please try again");
+              return;
+            }
+            setIsGoogleLoading(true);
+            try {
+              await loginWithGoogle(idToken);
+              toast.success("Welcome to TaskFlow!", { duration: 4000 });
+              router.replace("/boards");
+            } catch {
+              setIsGoogleLoading(false);
+              toast.error("Google sign-in failed, please try again");
+            }
+          }}
+          onError={() => {
+            setIsGoogleLoading(false);
+            toast.error("Google sign-in was unsuccessful. Please try again.");
+          }}
+        />
 
         {/* Divider */}
         <div className="flex items-center gap-3">
