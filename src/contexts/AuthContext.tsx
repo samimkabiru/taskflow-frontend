@@ -47,6 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setBoardRoles({});
       if (typeof window !== "undefined") {
         localStorage.removeItem("tf_board_roles");
+        localStorage.removeItem("tf_user");
+        localStorage.removeItem("tf_access_token");
         sessionStorage.removeItem("tf_user");
         sessionStorage.removeItem("tf_access_token");
       }
@@ -54,18 +56,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
-  // Silent session restore on mount via POST /auth/refresh
+  // Silent session restore on mount via POST /auth/refresh with safety timeout
   useEffect(() => {
     let isMounted = true;
+    let safetyTimer: NodeJS.Timeout | null = null;
 
     async function restoreAuth() {
-      // If we already have a valid active token and cached user, reuse without hitting backend
+      // 1. If we already have a valid active token and cached user, reuse without hitting backend!
       const currentToken = getAccessToken();
+      const cachedUser = getStoredSessionUser();
+
       if (currentToken) {
         const decoded = decodeJwtPayload(currentToken);
         if (decoded?.exp && decoded.exp * 1000 > Date.now() + 30000) {
           if (isMounted) {
-            const cachedUser = getStoredSessionUser();
             if (cachedUser) setUser(cachedUser);
             setIsLoading(false);
           }
@@ -73,14 +77,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // 2. Set an uncompromised fallback timeout so the app is NEVER stuck on "Checking session..."
+      safetyTimer = setTimeout(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }, 7500);
+
+      // 3. Request fresh session from backend with 7-second timeout
       try {
-        const result = await refreshSession();
+        const result = await refreshSession(7000);
         if (isMounted && result) {
           setUser(result.user);
         }
       } catch {
         if (isMounted) setUser(null);
       } finally {
+        if (safetyTimer) clearTimeout(safetyTimer);
         if (isMounted) setIsLoading(false);
       }
     }
@@ -89,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       isMounted = false;
+      if (safetyTimer) clearTimeout(safetyTimer);
     };
   }, []);
 
@@ -148,6 +162,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setBoardRoles({});
     if (typeof window !== "undefined") {
       localStorage.removeItem("tf_board_roles");
+      localStorage.removeItem("tf_user");
+      localStorage.removeItem("tf_access_token");
       sessionStorage.removeItem("tf_user");
       sessionStorage.removeItem("tf_access_token");
     }

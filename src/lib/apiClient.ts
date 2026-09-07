@@ -5,13 +5,13 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 export const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080";
 
-const ACCESS_TOKEN_SESSION_KEY = "tf_access_token";
+const ACCESS_TOKEN_KEY = "tf_access_token";
 
-// In-memory access token storage backed by sessionStorage (survives tab reload, cleared on tab close)
+// In-memory access token storage backed by localStorage (survives browser exit on mobile & desktop, with sessionStorage fallback)
 let inMemoryAccessToken: string | null = null;
 if (typeof window !== "undefined") {
   try {
-    inMemoryAccessToken = sessionStorage.getItem(ACCESS_TOKEN_SESSION_KEY);
+    inMemoryAccessToken = localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(ACCESS_TOKEN_KEY);
   } catch {}
 }
 
@@ -21,7 +21,7 @@ let authFailureListeners: Array<() => void> = [];
 export function getAccessToken(): string | null {
   if (!inMemoryAccessToken && typeof window !== "undefined") {
     try {
-      inMemoryAccessToken = sessionStorage.getItem(ACCESS_TOKEN_SESSION_KEY);
+      inMemoryAccessToken = localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(ACCESS_TOKEN_KEY);
     } catch {}
   }
   return inMemoryAccessToken;
@@ -32,9 +32,13 @@ export function setAccessToken(token: string | null): void {
   if (typeof window !== "undefined") {
     try {
       if (token) {
-        sessionStorage.setItem(ACCESS_TOKEN_SESSION_KEY, token);
+        localStorage.setItem(ACCESS_TOKEN_KEY, token);
+        // Also sync to sessionStorage for backwards compatibility
+        sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
       } else {
-        sessionStorage.removeItem(ACCESS_TOKEN_SESSION_KEY);
+        localStorage.removeItem(ACCESS_TOKEN_KEY);
+        localStorage.removeItem("tf_user");
+        sessionStorage.removeItem(ACCESS_TOKEN_KEY);
         sessionStorage.removeItem("tf_user");
       }
     } catch {}
@@ -122,13 +126,16 @@ async function parseErrorResponse(response: Response): Promise<ApiError> {
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
 
-export async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(timeoutMs = 8000): Promise<string | null> {
   if (isRefreshing && refreshPromise) {
     return refreshPromise;
   }
 
   isRefreshing = true;
   refreshPromise = (async () => {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
     try {
       // POST /auth/refresh — credentials: include sends the HttpOnly cookie
       const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
@@ -137,6 +144,7 @@ export async function refreshAccessToken(): Promise<string | null> {
         headers: {
           "Content-Type": "application/json",
         },
+        signal: controller?.signal,
       });
 
       if (!res.ok) {
@@ -154,6 +162,7 @@ export async function refreshAccessToken(): Promise<string | null> {
       authFailureListeners.forEach((listener) => listener());
       return null;
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       isRefreshing = false;
       refreshPromise = null;
     }
@@ -166,6 +175,7 @@ export async function refreshAccessToken(): Promise<string | null> {
 
 export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
+  timeoutMs?: number;
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -189,15 +199,34 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     headers.set("Authorization", `Bearer ${inMemoryAccessToken}`);
   }
 
+  let controller: AbortController | null = null;
+  let timeoutId: NodeJS.Timeout | null = null;
+  let effectiveSignal = options.signal;
+
+  if (options.timeoutMs && typeof AbortController !== "undefined") {
+    controller = new AbortController();
+    timeoutId = setTimeout(() => controller?.abort(), options.timeoutMs);
+    if (options.signal) {
+      options.signal.addEventListener("abort", () => controller?.abort());
+    }
+    effectiveSignal = controller.signal;
+  }
+
   let response: Response;
   try {
     response = await fetch(url, {
       ...options,
       headers,
       credentials,
+      signal: effectiveSignal,
     });
-  } catch (networkError) {
+  } catch (networkError: unknown) {
+    if (networkError instanceof Error && networkError.name === "AbortError") {
+      throw new ApiError(0, "Request timed out. The server took too long to respond.", undefined);
+    }
     throw new ApiError(0, "Network connection error. Please check your backend server.", undefined);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 
   // Handle 401 Unauthorized with auto-refresh (except for auth endpoints)

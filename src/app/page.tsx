@@ -19,6 +19,16 @@ export default function Home() {
     }
   }, [user, isLoading, router]);
 
+  // Safety fallback: if session checking hangs for 6 seconds on root, redirect to login
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isLoading && !user) {
+        router.replace("/login");
+      }
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [isLoading, user, router]);
+
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background text-on-surface">
       <div className="flex flex-col items-center gap-4 animate-pulse">

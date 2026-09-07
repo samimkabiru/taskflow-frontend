@@ -20,15 +20,17 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
-const USER_SESSION_KEY = "tf_user";
+const USER_KEY = "tf_user";
 
 export function saveSessionUser(user: User | null): void {
   if (typeof window !== "undefined") {
     try {
       if (user) {
-        sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(user));
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+        sessionStorage.setItem(USER_KEY, JSON.stringify(user));
       } else {
-        sessionStorage.removeItem(USER_SESSION_KEY);
+        localStorage.removeItem(USER_KEY);
+        sessionStorage.removeItem(USER_KEY);
       }
     } catch {}
   }
@@ -37,7 +39,7 @@ export function saveSessionUser(user: User | null): void {
 export function getStoredSessionUser(): User | null {
   if (typeof window !== "undefined") {
     try {
-      const json = sessionStorage.getItem(USER_SESSION_KEY);
+      const json = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
       return json ? (JSON.parse(json) as User) : null;
     } catch {
       return null;
@@ -97,24 +99,27 @@ export async function loginWithGoogle(idToken: string): Promise<{ user: User; ac
 
 /**
  * POST /auth/refresh (using HttpOnly cookie)
- * Checks for existing valid access token in sessionStorage first to avoid
- * unnecessary refresh token rotation and race conditions on rapid reloads.
+ * Checks for existing valid access token in localStorage first to avoid
+ * unnecessary refresh token rotation, cold starts, and race conditions on rapid reloads.
  */
-export async function refreshSession(): Promise<{ user: User; accessToken: string } | null> {
-  // 1. If we already have a valid active token and cached user in sessionStorage, reuse it
+export async function refreshSession(timeoutMs = 8000): Promise<{ user: User; accessToken: string } | null> {
+  // 1. If we already have a valid active token and cached user in storage, reuse it immediately
   const existingToken = getAccessToken();
   const cachedUser = getStoredSessionUser();
   if (existingToken && cachedUser) {
     const decoded = decodeJwtPayload(existingToken);
-    // If token has at least 30 seconds before expiring, reuse it safely
+    // If token has at least 30 seconds before expiring, reuse it safely without hitting the network
     if (decoded?.exp && decoded.exp * 1000 > Date.now() + 30000) {
       return { user: cachedUser, accessToken: existingToken };
     }
   }
 
-  // 2. Otherwise request fresh tokens from backend /auth/refresh using HttpOnly cookie
+  // 2. Otherwise request fresh tokens from backend /auth/refresh using HttpOnly cookie with timeout
   try {
-    const response = await api.post<AuthResponse>("/auth/refresh", undefined, { skipAuth: true });
+    const response = await api.post<AuthResponse>("/auth/refresh", undefined, {
+      skipAuth: true,
+      timeoutMs,
+    });
     setAccessToken(response.accessToken);
     const user = mapAuthResponseToUser(response);
     saveSessionUser(user);
