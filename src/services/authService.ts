@@ -1,6 +1,6 @@
 "use client";
 
-import { api, setAccessToken, getAccessToken } from "@/lib/apiClient";
+import { api, setAccessToken, getAccessToken, ApiError } from "@/lib/apiClient";
 import { decodeJwtPayload } from "@/lib/jwt";
 import type { User, AuthResponse } from "@/lib/types";
 
@@ -102,7 +102,7 @@ export async function loginWithGoogle(idToken: string): Promise<{ user: User; ac
  * Checks for existing valid access token in localStorage first to avoid
  * unnecessary refresh token rotation, cold starts, and race conditions on rapid reloads.
  */
-export async function refreshSession(timeoutMs = 8000): Promise<{ user: User; accessToken: string } | null> {
+export async function refreshSession(timeoutMs = 60000): Promise<{ user: User; accessToken: string } | null> {
   // 1. If we already have a valid active token and cached user in storage, reuse it immediately
   const existingToken = getAccessToken();
   const cachedUser = getStoredSessionUser();
@@ -114,7 +114,7 @@ export async function refreshSession(timeoutMs = 8000): Promise<{ user: User; ac
     }
   }
 
-  // 2. Otherwise request fresh tokens from backend /auth/refresh using HttpOnly cookie with timeout
+  // 2. Otherwise request fresh tokens from backend /auth/refresh using HttpOnly cookie with 60s timeout
   try {
     const response = await api.post<AuthResponse>("/auth/refresh", undefined, {
       skipAuth: true,
@@ -124,9 +124,13 @@ export async function refreshSession(timeoutMs = 8000): Promise<{ user: User; ac
     const user = mapAuthResponseToUser(response);
     saveSessionUser(user);
     return { user, accessToken: response.accessToken };
-  } catch {
-    setAccessToken(null);
-    saveSessionUser(null);
+  } catch (err: unknown) {
+    // Only clear stored session if the backend explicitly returned a 401 or 403 (invalid/expired refresh token).
+    // Do NOT wipe session on transient network timeouts or Render cold-start delays.
+    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+      setAccessToken(null);
+      saveSessionUser(null);
+    }
     return null;
   }
 }

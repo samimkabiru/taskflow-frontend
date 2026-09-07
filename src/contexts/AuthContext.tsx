@@ -76,30 +76,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           return;
         }
-
-        // Instant fail-fast: if the access token is already expired (exp is in the past),
-        // skip straight to clearing state and showing the login screen without waiting on network
-        if (decoded?.exp && decoded.exp * 1000 <= Date.now()) {
-          if (isMounted) {
-            setAccessToken(null);
-            saveSessionUser(null);
-            setUser(null);
-            setIsLoading(false);
-          }
-          return;
-        }
       }
 
-      // 2. Set an uncompromised fallback timeout so the app is NEVER stuck on "Checking session..."
+      // 2. If access token is expired (>15m) or absent, silently refresh via HttpOnly cookie.
+      // Fallback timer (65s) accommodates Render free-tier cold starts (~30-50s).
       safetyTimer = setTimeout(() => {
         if (isMounted) {
           setIsLoading(false);
         }
-      }, 7500);
+      }, 65000);
 
-      // 3. Request fresh session from backend with 7-second timeout
+      // 3. Request fresh session from backend with 60-second timeout
       try {
-        const result = await refreshSession(7000);
+        const result = await refreshSession(60000);
         if (isMounted && result) {
           setUser(result.user);
         }

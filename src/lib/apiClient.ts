@@ -128,31 +128,61 @@ async function parseErrorResponse(response: Response): Promise<ApiError> {
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
 
-export async function refreshAccessToken(timeoutMs = 8000): Promise<string | null> {
+export async function refreshAccessToken(timeoutMs = 60000): Promise<string | null> {
   if (isRefreshing && refreshPromise) {
     return refreshPromise;
   }
 
   isRefreshing = true;
   refreshPromise = (async () => {
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-
     try {
-      // POST /auth/refresh — auth endpoints bypass /api-proxy on same-origin so request path matches cookie Path=/auth scope
-      const refreshUrl = API_BASE_URL.startsWith("/") ? "/auth/refresh" : `${API_BASE_URL}/auth/refresh`;
-      const res = await fetch(refreshUrl, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        signal: controller?.signal,
-      });
+      const executeFetch = async (timeout: number): Promise<Response> => {
+        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), timeout) : null;
+        try {
+          // POST /auth/refresh — auth endpoints bypass /api-proxy on same-origin so request path matches cookie Path=/auth scope
+          const refreshUrl = API_BASE_URL.startsWith("/") ? "/auth/refresh" : `${API_BASE_URL}/auth/refresh`;
+          return await fetch(refreshUrl, {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            signal: controller?.signal,
+          });
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
+      };
 
-      if (!res.ok) {
+      let res: Response | null = null;
+      try {
+        res = await executeFetch(timeoutMs);
+      } catch {
+        // First attempt timed out or failed at network level (typically Render free tier cold-starting).
+        // Try once more with a 15-second window since the initial request initiated Render's wake-up.
+        try {
+          res = await executeFetch(15000);
+        } catch {
+          // Network or timeout failed on retry as well.
+          // Do NOT fire authFailureListeners or force logout on transient network failure.
+          return null;
+        }
+      }
+
+      if (!res) {
+        return null;
+      }
+
+      // Only genuine 401 or 403 responses indicate the refresh token itself is invalid/revoked/expired.
+      if (res.status === 401 || res.status === 403) {
         setAccessToken(null);
         authFailureListeners.forEach((listener) => listener());
+        return null;
+      }
+
+      // Server errors (500, 502, 503, 504) are transient backend issues; do not log out
+      if (!res.ok) {
         return null;
       }
 
@@ -161,11 +191,8 @@ export async function refreshAccessToken(timeoutMs = 8000): Promise<string | nul
       setAccessToken(newToken);
       return newToken;
     } catch {
-      setAccessToken(null);
-      authFailureListeners.forEach((listener) => listener());
       return null;
     } finally {
-      if (timeoutId) clearTimeout(timeoutId);
       isRefreshing = false;
       refreshPromise = null;
     }

@@ -30,8 +30,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [isLoading]);
 
   if (isLoading) {
-    const isWakingUp = elapsedSeconds >= 3 && elapsedSeconds < 7;
-    const isDelayed = elapsedSeconds >= 7;
+    const isWakingUp = elapsedSeconds >= 3 && elapsedSeconds < 15;
+    const isRestoring = elapsedSeconds >= 15;
 
     return (
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background text-on-surface p-4">
@@ -46,7 +46,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
               TaskFlow
             </h2>
 
-            {!isWakingUp && !isDelayed && (
+            {!isWakingUp && !isRestoring && (
               <p className="font-[family-name:var(--font-mono)] text-[12px] text-outline flex items-center gap-2">
                 <Loader2 size={13} className="animate-spin text-primary" />
                 Checking session...
@@ -65,14 +65,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
               </div>
             )}
 
-            {isDelayed && (
+            {isRestoring && (
               <div className="flex flex-col items-center gap-2 mt-1 w-full">
                 <p className="font-[family-name:var(--font-body)] text-[13px] font-medium text-primary flex items-center gap-2">
                   <Loader2 size={13} className="animate-spin" />
-                  Taking longer than expected...
+                  Restoring your session...
                 </p>
                 <p className="font-[family-name:var(--font-body)] text-[11.5px] text-outline max-w-xs leading-relaxed">
-                  If you are on Wi-Fi, the network connection may be delayed. You can proceed directly to login or retry.
+                  Backend server is spinning up. Your workspace will load automatically as soon as it connects.
                 </p>
 
                 {/* Escape hatch buttons */}
