@@ -22,6 +22,16 @@ export default function LoginPage() {
     }
   }, [user, isLoading, router]);
 
+  // Pre-warm the backend on login page mount: fire-and-forget HEAD request so Render cold start
+  // begins while user is still choosing a sign-in method
+  useEffect(() => {
+    const backendUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      (process.env.NODE_ENV === "production" ? "/api-proxy" : "http://localhost:8080");
+    const pingUrl = backendUrl.startsWith("http") ? backendUrl : `${backendUrl}/`;
+    fetch(pingUrl, { method: "HEAD", mode: "no-cors" }).catch(() => {});
+  }, []);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { User, BoardRole } from "@/lib/types";
 import { loginUser, registerUser, logoutUser, refreshSession, changeUserPassword, getStoredSessionUser, saveSessionUser, loginWithGoogle as loginWithGoogleService } from "@/services/authService";
 import { deleteUserAccount } from "@/services/userService";
-import { onAuthFailure, getAccessToken } from "@/lib/apiClient";
+import { onAuthFailure, getAccessToken, setAccessToken } from "@/lib/apiClient";
 import { decodeJwtPayload } from "@/lib/jwt";
 
 interface AuthContextType {
@@ -68,9 +68,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (currentToken) {
         const decoded = decodeJwtPayload(currentToken);
+        // Valid token with at least 30 seconds buffer -> reuse immediately in 0ms
         if (decoded?.exp && decoded.exp * 1000 > Date.now() + 30000) {
           if (isMounted) {
             if (cachedUser) setUser(cachedUser);
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        // Instant fail-fast: if the access token is already expired (exp is in the past),
+        // skip straight to clearing state and showing the login screen without waiting on network
+        if (decoded?.exp && decoded.exp * 1000 <= Date.now()) {
+          if (isMounted) {
+            setAccessToken(null);
+            saveSessionUser(null);
+            setUser(null);
             setIsLoading(false);
           }
           return;

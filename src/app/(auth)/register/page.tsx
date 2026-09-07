@@ -23,6 +23,15 @@ export default function RegisterPage() {
     }
   }, [user, isLoading, router]);
 
+  // Pre-warm the backend on register page mount
+  useEffect(() => {
+    const backendUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      (process.env.NODE_ENV === "production" ? "/api-proxy" : "http://localhost:8080");
+    const pingUrl = backendUrl.startsWith("http") ? backendUrl : `${backendUrl}/`;
+    fetch(pingUrl, { method: "HEAD", mode: "no-cors" }).catch(() => {});
+  }, []);
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
