@@ -7,7 +7,7 @@ import {
   Plus, CirclePlus, MoreVertical, Pencil,
   Trash2, Users, LayoutGrid, List, ChevronRight,
 } from "lucide-react";
-import { getBoards, deleteBoard, getBoardMembers } from "@/services/boardService";
+import { getBoards, createBoard, deleteBoard, getBoardMembers } from "@/services/boardService";
 import { getTaskListsForBoard, getTasksForBoard } from "@/services/taskService";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission } from "@/lib/types";
@@ -196,7 +196,9 @@ export default function BoardsDashboard() {
   }, [user?.id, user?.email]);
 
   useEffect(() => {
-    const handleBoardsUpdated = () => {
+    const handleBoardsUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.source === "boards-page") return;
       refreshBoards();
     };
     window.addEventListener("boards-updated", handleBoardsUpdated);
@@ -226,18 +228,78 @@ export default function BoardsDashboard() {
     localStorage.setItem("boards-view", v);
   };
 
-  const handleDeleteBoard = async (board: { id: string; name: string }) => {
+  const handleCreateBoard = async (data: {
+    name: string;
+    description: string;
+    accentColor: string;
+    taskPrefix: string;
+  }) => {
+    const tempId = `temp-board-${Date.now()}`;
+    const clientKey = `board-client-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const optimisticBoard: Board = {
+      id: tempId,
+      name: data.name,
+      description: data.description,
+      accentColor: data.accentColor,
+      taskPrefix: data.taskPrefix,
+      ownerId: user?.id || user?.email || "current-user",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      taskCount: 0,
+      completedTaskCount: 0,
+      hasDoneList: false,
+      memberCount: 1,
+      currentUserRole: "OWNER",
+      clientKey,
+    };
+
+    // 1. Immediately insert optimistic board at top of list
+    setBoardsList((prev) => [optimisticBoard, ...prev]);
+
+    // 2. Call API in background
     try {
-      await deleteBoard(board.id);
-      setBoardsList(prev => prev.filter(b => b.id !== board.id));
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("boards-updated"));
+      const created = await createBoard(data);
+      if (user) {
+        setUserBoardRole(created.id, "OWNER");
       }
-      toast.success(`Board "${board.name}" deleted.`);
+      setBoardsList((prev) =>
+        prev.map((b) =>
+          b.id === tempId || b.clientKey === clientKey
+            ? { ...created, memberCount: 1, currentUserRole: "OWNER", clientKey }
+            : b
+        )
+      );
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("boards-updated", { detail: { source: "boards-page" } }));
+      }
+      toast.success(`Board "${data.name}" created!`);
+    } catch (err: unknown) {
+      // Revert optimistic insertion on failure
+      setBoardsList((prev) => prev.filter((b) => b.id !== tempId && b.clientKey !== clientKey));
+      const errorMsg = err instanceof Error ? err.message : "Failed to create board";
+      toast.error(errorMsg);
+    }
+  };
+
+  const handleDeleteBoard = async (board: { id: string; name: string }) => {
+    const target = board;
+    const prevBoards = [...boardsList];
+
+    // 1. Immediately dismiss dialog and optimistically remove from UI
+    setBoardToDelete(null);
+    setBoardsList((prev) => prev.filter((b) => b.id !== target.id));
+
+    // 2. Perform API call in background
+    try {
+      await deleteBoard(target.id);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("boards-updated", { detail: { source: "boards-page" } }));
+      }
+      toast.success(`Board "${target.name}" deleted.`);
     } catch {
-      toast.error(`Failed to delete board "${board.name}".`);
-    } finally {
-      setBoardToDelete(null);
+      // Revert on failure
+      setBoardsList(prevBoards);
+      toast.error(`Failed to delete board "${target.name}". Please try again.`);
     }
   };
 
@@ -390,73 +452,117 @@ export default function BoardsDashboard() {
                 <span className="font-[family-name:var(--font-body)] text-[13px] font-medium">New Board</span>
               </button>
 
-              {boardsList.map(board => {
-                const isOwner   = user && (board.ownerId === user.id || board.ownerId === user.email);
-                const role      = isOwner ? "OWNER" : (board.currentUserRole ?? getUserBoardRole(board.id) ?? "MEMBER");
-                const memberCount = board.memberCount ?? 1;
-                const canDelete = role ? hasPermission(role, "DELETE_BOARD")      : false;
-                const canEdit   = role ? hasPermission(role, "MANAGE_SETTINGS")   : false;
-                const hasDoneList = board.hasDoneList ?? false;
-                const pct = (board.taskCount ?? 0) > 0 && hasDoneList
-                  ? Math.round(((board.completedTaskCount ?? 0) / (board.taskCount ?? 1)) * 100)
-                  : 0;
+              <AnimatePresence>
+                {boardsList.map((board) => {
+                  const isOwner = user && (board.ownerId === user.id || board.ownerId === user.email);
+                  const role = isOwner ? "OWNER" : (board.currentUserRole ?? getUserBoardRole(board.id) ?? "MEMBER");
+                  const memberCount = board.memberCount ?? 1;
+                  const canDelete = role ? hasPermission(role, "DELETE_BOARD") : false;
+                  const canEdit = role ? hasPermission(role, "MANAGE_SETTINGS") : false;
+                  const hasDoneList = board.hasDoneList ?? false;
+                  const pct = (board.taskCount ?? 0) > 0 && hasDoneList
+                    ? Math.round(((board.completedTaskCount ?? 0) / (board.taskCount ?? 1)) * 100)
+                    : 0;
+                  const isPending = board.id.startsWith("temp-");
 
-                return (
-                  <Link
-                    key={board.id}
-                    href={`/boards/${board.id}`}
-                    className="elevation-1 rounded-xl p-5 flex flex-col justify-between relative overflow-hidden group cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200"
-                  >
-                    {/* Accent stripe */}
-                    <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: board.accentColor }} />
-
-                    <div>
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-[family-name:var(--font-heading)] text-[17px] font-semibold text-on-surface line-clamp-1 pr-2 leading-tight flex-1">
-                          {board.name}
-                        </h3>
-                        <BoardMenu
-                          board={board} canEdit={canEdit} canDelete={canDelete}
-                          onEdit={() => setEditingBoard(board)}
-                          onDelete={() => setBoardToDelete({ id: board.id, name: board.name })}
+                  return (
+                    <motion.div
+                      key={board.clientKey || board.id}
+                      layout="position"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{
+                        opacity: 0,
+                        y: 12,
+                        scale: 0.96,
+                        transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
+                      }}
+                      transition={{
+                        duration: 0.24,
+                        ease: [0.16, 1, 0.3, 1],
+                        layout: { duration: 0.24, ease: [0.16, 1, 0.3, 1] },
+                      }}
+                      className="h-full"
+                    >
+                      <Link
+                        href={isPending ? "#" : `/boards/${board.id}`}
+                        onClick={(e) => {
+                          if (isPending) e.preventDefault();
+                        }}
+                        className={cn(
+                          "elevation-1 rounded-xl p-5 flex flex-col justify-between relative overflow-hidden group h-full transition-all duration-200",
+                          isPending
+                            ? "opacity-80 ring-1 ring-primary/30 pointer-events-none cursor-default"
+                            : "cursor-pointer hover:shadow-md hover:scale-[1.02]"
+                        )}
+                      >
+                        {/* Accent stripe */}
+                        <div
+                          className={cn(
+                            "absolute left-0 top-0 bottom-0 w-1 rounded-l-xl transition-all",
+                            isPending && "animate-pulse"
+                          )}
+                          style={{ backgroundColor: board.accentColor }}
                         />
-                      </div>
-                      <p className="font-[family-name:var(--font-body)] text-[12.5px] text-on-surface-variant line-clamp-2 leading-relaxed">
-                        {board.description || "No description"}
-                      </p>
-                    </div>
 
-                    {/* Progress bar or Task count */}
-                    {hasDoneList && (board.taskCount ?? 0) > 0 ? (
-                      <div className="mt-3">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-[family-name:var(--font-mono)] text-[10px] text-outline">{pct}% complete</span>
-                          <span className="font-[family-name:var(--font-mono)] text-[10px] text-outline">{board.completedTaskCount ?? 0}/{board.taskCount ?? 0}</span>
+                        <div>
+                          <div className="flex justify-between items-start mb-2">
+                            <h3 className="font-[family-name:var(--font-heading)] text-[17px] font-semibold text-on-surface line-clamp-1 pr-2 leading-tight flex-1">
+                              {board.name}
+                            </h3>
+                            {isPending ? (
+                              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full animate-pulse font-[family-name:var(--font-mono)] shrink-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping shrink-0" />
+                                Creating...
+                              </span>
+                            ) : (
+                              <BoardMenu
+                                board={board}
+                                canEdit={canEdit}
+                                canDelete={canDelete}
+                                onEdit={() => setEditingBoard(board)}
+                                onDelete={() => setBoardToDelete({ id: board.id, name: board.name })}
+                              />
+                            )}
+                          </div>
+                          <p className="font-[family-name:var(--font-body)] text-[12.5px] text-on-surface-variant line-clamp-2 leading-relaxed">
+                            {board.description || "No description"}
+                          </p>
                         </div>
-                        <div className="h-1 rounded-full bg-outline-variant/30 overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-primary/70 transition-all"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    ) : (board.taskCount ?? 0) > 0 ? (
-                      <div className="mt-3 flex items-center justify-between">
-                        <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-outline">
-                          {board.taskCount} {board.taskCount === 1 ? "task" : "tasks"}
-                        </span>
-                      </div>
-                    ) : null}
 
-                    <div className="flex items-end justify-between mt-3">
-                      <AvatarStack memberCount={memberCount} />
-                      <span className="font-[family-name:var(--font-mono)] text-[10px] text-outline">
-                        {getRelativeTime(board.updatedAt)}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
+                        {/* Progress bar or Task count */}
+                        {hasDoneList && (board.taskCount ?? 0) > 0 ? (
+                          <div className="mt-3">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-[family-name:var(--font-mono)] text-[10px] text-outline">{pct}% complete</span>
+                              <span className="font-[family-name:var(--font-mono)] text-[10px] text-outline">{board.completedTaskCount ?? 0}/{board.taskCount ?? 0}</span>
+                            </div>
+                            <div className="h-1 rounded-full bg-outline-variant/30 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-primary/70 transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (board.taskCount ?? 0) > 0 ? (
+                          <div className="mt-3 flex items-center justify-between">
+                            <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-outline">
+                              {board.taskCount} {board.taskCount === 1 ? "task" : "tasks"}
+                            </span>
+                          </div>
+                        ) : null}
+
+                        <div className="flex items-end justify-between mt-3">
+                          <AvatarStack memberCount={memberCount} />
+                          <span className="font-[family-name:var(--font-mono)] text-[10px] text-outline">
+                            {isPending ? "Just now" : getRelativeTime(board.updatedAt)}
+                          </span>
+                        </div>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </motion.div>
           )}
 
@@ -479,104 +585,135 @@ export default function BoardsDashboard() {
                 <span className="w-8" />
               </div>
 
-              {boardsList.map((board, idx) => {
-                const isOwner     = user && (board.ownerId === user.id || board.ownerId === user.email);
-                const role        = isOwner ? "OWNER" : (board.currentUserRole ?? getUserBoardRole(board.id) ?? "MEMBER");
-                const memberCount = board.memberCount ?? 1;
-                const canDelete   = role ? hasPermission(role, "DELETE_BOARD")    : false;
-                const canEdit     = role ? hasPermission(role, "MANAGE_SETTINGS") : false;
-                const hasDoneList = board.hasDoneList ?? false;
-                const pct = (board.taskCount ?? 0) > 0 && hasDoneList
-                  ? Math.round(((board.completedTaskCount ?? 0) / (board.taskCount ?? 1)) * 100)
-                  : 0;
-                const roleLabel = role ?? "MEMBER";
+              <AnimatePresence>
+                {boardsList.map((board, idx) => {
+                  const isOwner     = user && (board.ownerId === user.id || board.ownerId === user.email);
+                  const role        = isOwner ? "OWNER" : (board.currentUserRole ?? getUserBoardRole(board.id) ?? "MEMBER");
+                  const memberCount = board.memberCount ?? 1;
+                  const canDelete   = role ? hasPermission(role, "DELETE_BOARD")    : false;
+                  const canEdit     = role ? hasPermission(role, "MANAGE_SETTINGS") : false;
+                  const hasDoneList = board.hasDoneList ?? false;
+                  const pct = (board.taskCount ?? 0) > 0 && hasDoneList
+                    ? Math.round(((board.completedTaskCount ?? 0) / (board.taskCount ?? 1)) * 100)
+                    : 0;
+                  const roleLabel = role ?? "MEMBER";
+                  const isPending = board.id.startsWith("temp-");
 
-                return (
-                  <motion.div
-                    key={board.id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.18, delay: idx * 0.03 }}
-                    className={cn(
-                      "group relative",
-                      idx < boardsList.length - 1 && "border-b border-outline-variant/30"
-                    )}
-                  >
-                    <Link
-                      href={`/boards/${board.id}`}
-                      className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto_auto_auto] gap-3 sm:gap-4 items-center px-5 py-4 hover:bg-surface-low/60 transition-colors cursor-pointer"
+                  return (
+                    <motion.div
+                      key={board.clientKey || board.id}
+                      layout="position"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{
+                        opacity: 0,
+                        y: 8,
+                        transition: { duration: 0.16, ease: [0.16, 1, 0.3, 1] },
+                      }}
+                      transition={{
+                        duration: 0.2,
+                        ease: [0.16, 1, 0.3, 1],
+                        layout: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
+                      }}
+                      className={cn(
+                        "group relative",
+                        idx < boardsList.length - 1 && "border-b border-outline-variant/30",
+                        isPending && "opacity-80"
+                      )}
                     >
-                      {/* Board name + description */}
-                      <div className="flex items-center gap-3 min-w-0">
-                        {/* Accent dot */}
-                        <div
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: board.accentColor }}
-                        />
-                        <div className="min-w-0">
-                          <p className="font-[family-name:var(--font-heading)] text-[14.5px] font-semibold text-on-surface truncate leading-tight">
-                            {board.name}
-                          </p>
-                          <p className="font-[family-name:var(--font-body)] text-[12px] text-on-surface-variant truncate mt-0.5">
-                            {board.description || "No description"} · {getRelativeTime(board.updatedAt)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Progress or Task count */}
-                      <div className="hidden sm:flex flex-col items-center justify-center gap-1 w-24">
-                        {hasDoneList && (board.taskCount ?? 0) > 0 ? (
-                          <>
-                            <div className="w-full h-1.5 rounded-full bg-outline-variant/25 overflow-hidden">
-                              <div
-                                className="h-full rounded-full bg-primary/70"
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <span className="font-[family-name:var(--font-mono)] text-[10px] text-outline">
-                              {board.completedTaskCount ?? 0}/{board.taskCount ?? 0} tasks
-                            </span>
-                          </>
-                        ) : (
-                          <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-outline text-center">
-                            {(board.taskCount ?? 0) > 0 ? `${board.taskCount} tasks` : "—"}
-                          </span>
+                      <Link
+                        href={isPending ? "#" : `/boards/${board.id}`}
+                        onClick={(e) => {
+                          if (isPending) e.preventDefault();
+                        }}
+                        className={cn(
+                          "grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto_auto_auto] gap-3 sm:gap-4 items-center px-5 py-4 transition-colors",
+                          isPending ? "pointer-events-none cursor-default" : "hover:bg-surface-low/60 cursor-pointer"
                         )}
-                      </div>
+                      >
+                        {/* Board name + description */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Accent dot */}
+                          <div
+                            className={cn("w-2.5 h-2.5 rounded-full shrink-0", isPending && "animate-pulse")}
+                            style={{ backgroundColor: board.accentColor }}
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-[family-name:var(--font-heading)] text-[14.5px] font-semibold text-on-surface truncate leading-tight">
+                                {board.name}
+                              </p>
+                              {isPending && (
+                                <span className="flex items-center gap-1 text-[9.5px] font-semibold text-primary bg-primary/10 px-1.5 py-0.2 rounded-full animate-pulse font-[family-name:var(--font-mono)] shrink-0">
+                                  Creating...
+                                </span>
+                              )}
+                            </div>
+                            <p className="font-[family-name:var(--font-body)] text-[12px] text-on-surface-variant truncate mt-0.5">
+                              {board.description || "No description"} · {isPending ? "Just now" : getRelativeTime(board.updatedAt)}
+                            </p>
+                          </div>
+                        </div>
 
-                      {/* Members */}
-                      <div className="hidden sm:flex justify-center w-20">
-                        <AvatarStack memberCount={memberCount} />
-                      </div>
+                        {/* Progress or Task count */}
+                        <div className="hidden sm:flex flex-col items-center justify-center gap-1 w-24">
+                          {hasDoneList && (board.taskCount ?? 0) > 0 ? (
+                            <>
+                              <div className="w-full h-1.5 rounded-full bg-outline-variant/25 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-primary/70"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className="font-[family-name:var(--font-mono)] text-[10px] text-outline">
+                                {board.completedTaskCount ?? 0}/{board.taskCount ?? 0} tasks
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-[family-name:var(--font-mono)] text-[10.5px] text-outline text-center">
+                              {(board.taskCount ?? 0) > 0 ? `${board.taskCount} tasks` : "—"}
+                            </span>
+                          )}
+                        </div>
 
-                      {/* Role pill */}
-                      <div className="hidden sm:flex justify-center w-16">
-                        <span className={cn(
-                          "font-[family-name:var(--font-mono)] text-[10px] px-2 py-0.5 rounded-md font-semibold capitalize",
-                          ROLE_STYLE[roleLabel] ?? ROLE_STYLE.MEMBER
-                        )}>
-                          {roleLabel.charAt(0) + roleLabel.slice(1).toLowerCase()}
-                        </span>
-                      </div>
+                        {/* Members */}
+                        <div className="hidden sm:flex justify-center w-20">
+                          <AvatarStack memberCount={memberCount} />
+                        </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center justify-end w-8 gap-1" onClick={e => e.preventDefault()}>
-                        <BoardMenu
-                          board={board} canEdit={canEdit} canDelete={canDelete}
-                          onEdit={() => setEditingBoard(board)}
-                          onDelete={() => setBoardToDelete({ id: board.id, name: board.name })}
+                        {/* Role pill */}
+                        <div className="hidden sm:flex justify-center w-16">
+                          <span className={cn(
+                            "font-[family-name:var(--font-mono)] text-[10px] px-2 py-0.5 rounded-md font-semibold capitalize",
+                            ROLE_STYLE[roleLabel] ?? ROLE_STYLE.MEMBER
+                          )}>
+                            {roleLabel.charAt(0) + roleLabel.slice(1).toLowerCase()}
+                          </span>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center justify-end w-8 gap-1" onClick={e => e.preventDefault()}>
+                          {!isPending && (
+                            <BoardMenu
+                              board={board} canEdit={canEdit} canDelete={canDelete}
+                              onEdit={() => setEditingBoard(board)}
+                              onDelete={() => setBoardToDelete({ id: board.id, name: board.name })}
+                            />
+                          )}
+                        </div>
+                      </Link>
+
+                      {/* Hover chevron (desktop) — right edge */}
+                      {!isPending && (
+                        <ChevronRight
+                          size={14}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-outline opacity-0 group-hover:opacity-40 transition-opacity pointer-events-none hidden sm:block"
                         />
-                      </div>
-                    </Link>
-
-                    {/* Hover chevron (desktop) — right edge */}
-                    <ChevronRight
-                      size={14}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-outline opacity-0 group-hover:opacity-40 transition-opacity pointer-events-none hidden sm:block"
-                    />
-                  </motion.div>
-                );
-              })}
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
 
               {/* Add board row */}
               <button
@@ -595,7 +732,8 @@ export default function BoardsDashboard() {
       {/* ─── Modals ──────────────────────────────────────────── */}
       <CreateBoardModal
         open={showCreateModal}
-        onClose={() => { setShowCreateModal(false); refreshBoards(); }}
+        onClose={() => setShowCreateModal(false)}
+        onCreateBoard={handleCreateBoard}
       />
       {editingBoard && (
         <EditBoardModal

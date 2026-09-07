@@ -20,9 +20,15 @@ const ACCENT_COLORS = [
 interface CreateBoardModalProps {
   open: boolean;
   onClose: () => void;
+  onCreateBoard?: (data: {
+    name: string;
+    description: string;
+    accentColor: string;
+    taskPrefix: string;
+  }) => Promise<void> | void;
 }
 
-export default function CreateBoardModal({ open, onClose }: CreateBoardModalProps) {
+export default function CreateBoardModal({ open, onClose, onCreateBoard }: CreateBoardModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [accentColor, setAccentColor] = useState(ACCENT_COLORS[0]);
@@ -44,14 +50,28 @@ export default function CreateBoardModal({ open, onClose }: CreateBoardModalProp
     setPrefixTouched(true);
     if (!name.trim() || !isPrefixValid) return;
 
+    const boardData = {
+      name: name.trim(),
+      description: description.trim(),
+      accentColor,
+      taskPrefix: taskPrefix.trim(),
+    };
+
+    // If caller provided an optimistic handler, delegate immediately and dismiss
+    if (onCreateBoard) {
+      onCreateBoard(boardData);
+      setName("");
+      setDescription("");
+      setTaskPrefix("");
+      setPrefixTouched(false);
+      setAccentColor(ACCENT_COLORS[0]);
+      onClose();
+      return;
+    }
+
     setLoading(true);
     try {
-      await createBoard({
-        name: name.trim(),
-        description: description.trim(),
-        accentColor,
-        taskPrefix: taskPrefix.trim(),
-      });
+      await createBoard(boardData);
       toast.success(`Board "${name}" created!`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("boards-updated"));

@@ -52,6 +52,7 @@ export interface Board {
   completedTaskCount?: number;
   hasDoneList?: boolean;
   currentUserRole?: BoardRole;
+  clientKey?: string;
 }
 
 export interface BoardMember {
