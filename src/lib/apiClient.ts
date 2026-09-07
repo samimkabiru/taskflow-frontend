@@ -139,8 +139,9 @@ export async function refreshAccessToken(timeoutMs = 8000): Promise<string | nul
     const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
 
     try {
-      // POST /auth/refresh — credentials: include sends the HttpOnly cookie
-      const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      // POST /auth/refresh — auth endpoints bypass /api-proxy on same-origin so request path matches cookie Path=/auth scope
+      const refreshUrl = API_BASE_URL.startsWith("/") ? "/auth/refresh" : `${API_BASE_URL}/auth/refresh`;
+      const res = await fetch(refreshUrl, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -181,8 +182,18 @@ export interface RequestOptions extends RequestInit {
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const url = path.startsWith("http") ? path : `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
-  const isAuthEndpoint = path.includes("/auth/") || url.includes("/auth/");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const isAuthEndpoint = normalizedPath.startsWith("/auth/") || path.includes("/auth/");
+
+  // Auth endpoints (/auth/*) bypass /api-proxy on same-origin to strictly match the refresh cookie's Path=/auth scope
+  let url: string;
+  if (path.startsWith("http")) {
+    url = path;
+  } else if (isAuthEndpoint && API_BASE_URL.startsWith("/")) {
+    url = normalizedPath;
+  } else {
+    url = `${API_BASE_URL}${normalizedPath}`;
+  }
 
   // Build headers
   const headers = new Headers(options.headers || {});
