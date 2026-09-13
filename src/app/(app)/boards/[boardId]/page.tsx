@@ -65,7 +65,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, isCompletionListName } from "@/lib/utils";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import InputDialog from "@/components/ui/InputDialog";
 
@@ -77,12 +77,6 @@ const LIST_THEMES: Record<string, { bar: string; badge: string; dot: string; bg:
   "In Review":   { bar: "bg-tertiary",                          dot: "bg-tertiary",  badge: "bg-tertiary/10 text-tertiary font-semibold",    bg: "bg-tertiary/[0.02] dark:bg-tertiary/[0.03]" },
   "Done":        { bar: "bg-secondary",                         dot: "bg-secondary", badge: "bg-secondary/15 text-secondary font-semibold",  bg: "bg-secondary/[0.02] dark:bg-secondary/[0.03]" },
 };
-
-function isCompletionListName(name?: string): boolean {
-  if (!name) return false;
-  const n = name.trim().toLowerCase();
-  return n === "done" || n === "completed" || n === "finished";
-}
 
 function getListTheme(name: string) {
   if (isCompletionListName(name)) {

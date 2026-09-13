@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Calendar, MessageSquare, Paperclip, Trash2, MoreHorizontal, User as UserIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isCompletionListName } from "@/lib/utils";
 import type { Task, TaskList, Priority, BoardMember, Label } from "@/lib/types";
 import { hasPermission } from "@/lib/types";
 import { useAuth } from "@/contexts/AuthContext";
@@ -63,7 +63,9 @@ export default function TaskCard({ task, onClick, taskLists, currentListId, isDo
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const otherLists    = taskLists.filter(l => l.id !== currentListId);
-  const isOverdue     = task.dueDate && new Date(task.dueDate) < new Date() && !isDone;
+  const currentList   = taskLists.find(l => l.id === (currentListId || task.listId));
+  const effectiveIsDone = isDone !== undefined ? isDone : isCompletionListName(currentList?.name);
+  const isOverdue     = task.dueDate && new Date(task.dueDate) < new Date() && !effectiveIsDone;
   const priorityCfg   = task.priority ? PRIORITY_CONFIG[task.priority] : null;
   const stripeColor   = task.priority ? PRIORITY_STRIPE[task.priority] : undefined;
 
@@ -109,7 +111,7 @@ export default function TaskCard({ task, onClick, taskLists, currentListId, isDo
       {/* Priority left stripe */}
       <div
         className="absolute left-0 top-0 bottom-0 w-[3px]"
-        style={{ backgroundColor: isDone ? "var(--color-outline-variant)" : stripeColor }}
+        style={{ backgroundColor: effectiveIsDone ? "var(--color-outline-variant)" : stripeColor }}
       />
 
       {/* Card body — compact */}
@@ -134,7 +136,7 @@ export default function TaskCard({ task, onClick, taskLists, currentListId, isDo
             {/* Short code */}
             <span className={cn(
               "font-[family-name:var(--font-mono)] text-[10px] text-outline tracking-wide shrink-0",
-              isDone && "line-through"
+              effectiveIsDone && "line-through"
             )}>
               {task.shortCode}
             </span>
@@ -142,7 +144,7 @@ export default function TaskCard({ task, onClick, taskLists, currentListId, isDo
 
           <div className="flex items-center gap-1 shrink-0">
             {/* Priority badge */}
-            {!isDone && priorityCfg && (
+            {!effectiveIsDone && priorityCfg && (
               <span className={cn(
                 "font-[family-name:var(--font-mono)] text-[9px] px-1.5 py-0.5 rounded-md shrink-0 leading-none",
                 priorityCfg.color
@@ -206,7 +208,7 @@ export default function TaskCard({ task, onClick, taskLists, currentListId, isDo
           <p
             className={cn(
               "font-[family-name:var(--font-body)] text-[13.5px] font-medium text-on-surface leading-snug truncate",
-              isDone && "line-through text-outline"
+              effectiveIsDone && "line-through text-outline"
             )}
           >
             {task.title}

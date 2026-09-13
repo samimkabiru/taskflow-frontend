@@ -7,7 +7,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { motion, AnimatePresence, useIsPresent } from "framer-motion";
 import { Plus, MoreHorizontal, LayoutDashboard, GripVertical } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isCompletionListName } from "@/lib/utils";
 import type { Task, TaskList, BoardMember, Label } from "@/lib/types";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import {
@@ -30,6 +30,9 @@ export const LIST_THEMES: Record<string, { bar: string; badge: string; dot: stri
 };
 
 export function getListTheme(name: string) {
+  if (isCompletionListName(name)) {
+    return LIST_THEMES["Done"];
+  }
   return LIST_THEMES[name] ?? {
     bar: "bg-primary/60",
     dot: "bg-primary/60",
@@ -103,6 +106,7 @@ export default function KanbanColumn({
   onTaskDeleted,
 }: KanbanColumnProps) {
   const isPresent = useIsPresent();
+  const isCompletion = isLastList || isCompletionListName(list.name);
   const listTheme = getListTheme(list.name);
   const taskIds = tasks.map((t) => t.id);
 
@@ -222,7 +226,7 @@ export default function KanbanColumn({
           onPointerDown={(e) => e.stopPropagation()}
         >
           {/* Header Quick Add Button */}
-          {canCreateTask && !isLastList && !isPending && (
+          {canCreateTask && !isCompletion && !isPending && (
             <SimpleTooltip content={`Add task to ${list.name}`}>
               <button
                 type="button"
@@ -318,11 +322,11 @@ export default function KanbanColumn({
                   ? "Connecting to workspace"
                   : activeFilterCount > 0
                   ? "Try adjusting your filters"
-                  : isLastList
+                  : isCompletion
                   ? "Drop completed tasks here"
                   : "Drop tasks here or create one"}
               </p>
-              {canCreateTask && !isLastList && !isEmptyOver && (
+              {canCreateTask && !isCompletion && !isEmptyOver && (
                 <div className="h-6 flex items-center justify-center">
                   {isPending ? (
                     <span className="text-[11px] text-outline/50 font-mono tracking-tight animate-pulse">
@@ -350,7 +354,7 @@ export default function KanbanColumn({
                     onClick={() => onTaskClick(task.id)}
                     taskLists={allTaskLists}
                     currentListId={list.id}
-                    isDone={isLastList}
+                    isDone={isCompletion}
                     members={members}
                     allLabels={labels}
                     disabled={disabled || isPending}

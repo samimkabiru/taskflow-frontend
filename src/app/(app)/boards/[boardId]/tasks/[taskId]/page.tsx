@@ -29,7 +29,7 @@ import { getLabelsForBoard, assignLabelsToTask } from "@/services/labelService";
 import { useBoardWebSocket } from "@/hooks/useBoardWebSocket";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, isCompletionListName } from "@/lib/utils";
 import { toast } from "sonner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import MessageRenderer from "@/components/chat/MessageRenderer";
@@ -46,12 +46,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 // ─── Column Status Color Helper ─────────────────────────────
-function isCompletionListName(name?: string): boolean {
-  if (!name) return false;
-  const n = name.trim().toLowerCase();
-  return n === "done" || n === "completed" || n === "finished";
-}
-
 function getListColor(listName?: string) {
   if (!listName) return "bg-slate-400";
   const lower = listName.toLowerCase();
