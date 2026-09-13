@@ -154,11 +154,82 @@ function formatFileSize(bytes: number) {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-function activitySummary(entry: { action: string; actor: { fullName: string }; metadata?: Record<string, string> }): { actor: string; text: string } {
+function resolveListName(rawVal?: string, listId?: string, taskLists: TaskList[] = []): string {
+  if (rawVal && rawVal.trim() && rawVal !== "—") {
+    // If rawVal is an ID rather than a name, resolve to list name
+    const foundById = taskLists.find((l) => l.id === rawVal);
+    if (foundById) return foundById.name;
+    return rawVal;
+  }
+  if (listId) {
+    const foundById = taskLists.find((l) => l.id === listId);
+    if (foundById) return foundById.name;
+  }
+  return "";
+}
+
+function activitySummary(
+  entry: { action: string; actor: { fullName: string }; metadata?: Record<string, string> },
+  taskLists: TaskList[] = []
+): { actor: string; text: string } {
   const name = entry.actor.fullName.split(" ")[0];
+  const meta = entry.metadata || {};
+
   switch (entry.action) {
-    case "TASK_MOVED":         return { actor: name, text: `moved this from **${entry.metadata?.from ?? "—"}** → **${entry.metadata?.to ?? "—"}**` };
-    case "PRIORITY_CHANGED":   return { actor: name, text: `changed priority from **${entry.metadata?.from ?? "—"}** to **${entry.metadata?.to ?? "—"}**` };
+    case "TASK_MOVED": {
+      const rawFrom =
+        meta.from_list ||
+        meta.fromList ||
+        meta.from_list_title ||
+        meta.fromListTitle ||
+        meta.from_list_name ||
+        meta.fromListName ||
+        meta.from ||
+        meta.old_list ||
+        meta.oldList ||
+        meta.source_list ||
+        meta.sourceList ||
+        "";
+      const fromId = meta.from_list_id || meta.fromListId || "";
+      const resolvedFrom = resolveListName(rawFrom, fromId, taskLists);
+
+      const rawTo =
+        meta.to_list ||
+        meta.toList ||
+        meta.to_list_title ||
+        meta.toListTitle ||
+        meta.to_list_name ||
+        meta.toListName ||
+        meta.to ||
+        meta.new_list ||
+        meta.newList ||
+        meta.target_list ||
+        meta.targetList ||
+        meta.list_name ||
+        meta.listName ||
+        "";
+      const toId = meta.to_list_id || meta.toListId || meta.list_id || meta.listId || "";
+      const resolvedTo = resolveListName(rawTo, toId, taskLists);
+
+      if (resolvedFrom && resolvedTo) {
+        return { actor: name, text: `moved this from **${resolvedFrom}** → **${resolvedTo}**` };
+      } else if (resolvedTo) {
+        return { actor: name, text: `moved this to **${resolvedTo}**` };
+      } else if (resolvedFrom) {
+        return { actor: name, text: `moved this from **${resolvedFrom}**` };
+      }
+      return { actor: name, text: "moved this task to another list" };
+    }
+    case "PRIORITY_CHANGED": {
+      const fromP = meta.from_priority || meta.fromPriority || meta.from || "";
+      const toP = meta.to_priority || meta.toPriority || meta.priority || meta.to || "";
+      if (fromP && toP && fromP !== "—" && toP !== "—") {
+        return { actor: name, text: `changed priority from **${fromP}** to **${toP}**` };
+      } else if (toP && toP !== "—") {
+        return { actor: name, text: `changed priority to **${toP}**` };
+      }
+      return { actor: name, text: "updated task priority" };
+    }
     case "ASSIGNEE_CHANGED":   return { actor: name, text: "changed the assignee" };
     case "TASK_CREATED":       return { actor: name, text: "created this task" };
     case "TASK_UPDATED":       return { actor: name, text: "updated this task" };
@@ -1324,7 +1395,7 @@ export default function TaskDetailPage() {
               {group.items.map((item, idx) => {
                 // Activity pill
                 if (item.kind === "activity") {
-                  const summary = activitySummary(item.entry);
+                  const summary = activitySummary(item.entry, taskLists);
                   const colorClass = activityColor(item.entry.action);
                   return (
                     <motion.div

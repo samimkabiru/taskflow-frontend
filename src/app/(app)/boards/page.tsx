@@ -489,11 +489,12 @@ export default function BoardsDashboard() {
                         onClick={(e) => {
                           if (isPending) e.preventDefault();
                         }}
+                        style={{ WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
                         className={cn(
-                          "elevation-1 rounded-xl p-5 flex flex-col justify-between relative overflow-hidden group h-full transition-all duration-200",
+                          "elevation-1 rounded-xl p-5 flex flex-col justify-between relative overflow-hidden group h-full transition-all duration-150 ease-out select-none",
                           isPending
                             ? "opacity-80 ring-1 ring-primary/30 pointer-events-none cursor-default"
-                            : "cursor-pointer hover:shadow-md hover:scale-[1.02]"
+                            : "cursor-pointer hover:shadow-md hover:scale-[1.015] active:scale-[0.975] active:shadow-xs active:bg-surface-low/70 active:brightness-[0.98]"
                         )}
                       >
                         {/* Accent stripe */}
@@ -626,9 +627,12 @@ export default function BoardsDashboard() {
                         onClick={(e) => {
                           if (isPending) e.preventDefault();
                         }}
+                        style={{ WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
                         className={cn(
-                          "grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto_auto_auto] gap-3 sm:gap-4 items-center px-5 py-4 transition-colors",
-                          isPending ? "pointer-events-none cursor-default" : "hover:bg-surface-low/60 cursor-pointer"
+                          "grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto_auto_auto] gap-3 sm:gap-4 items-center px-5 py-4 transition-all duration-150 ease-out select-none",
+                          isPending
+                            ? "pointer-events-none cursor-default"
+                            : "hover:bg-surface-low/60 active:bg-primary/10 active:scale-[0.99] cursor-pointer"
                         )}
                       >
                         {/* Board name + description */}

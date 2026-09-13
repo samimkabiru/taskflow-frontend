@@ -95,14 +95,15 @@ export default function TaskCard({ task, onClick, taskLists, currentListId, isDo
       }}
       exit={{ opacity: 0, y: 8 }}
       whileHover={{ y: -2, transition: { duration: 0.12 } }}
-      whileTap={{ scale: 0.98 }}
+      whileTap={{ scale: 0.965, transition: { duration: 0.08 } }}
       transition={{
         layout: { type: "spring", stiffness: 380, damping: 30 },
         opacity: { duration: 0.18, ease: [0.16, 1, 0.3, 1] },
         y: { duration: 0.18, ease: [0.16, 1, 0.3, 1] },
         backgroundColor: { duration: 1.8 },
       }}
-      className="relative flex flex-col overflow-hidden rounded-xl border border-outline-variant/60 bg-surface-lowest shadow-xs hover:shadow-md hover:border-outline-variant cursor-pointer group shrink-0 transition-shadow"
+      style={{ WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
+      className="relative flex flex-col overflow-hidden rounded-xl border border-outline-variant/60 bg-surface-lowest shadow-xs hover:shadow-md hover:border-outline-variant cursor-pointer group shrink-0 select-none transition-all duration-100 ease-out active:scale-[0.965] active:border-primary/40 active:bg-surface-low/90 active:shadow-inner"
       onClick={onClick}
     >
       {/* Priority left stripe */}
