@@ -78,7 +78,16 @@ const LIST_THEMES: Record<string, { bar: string; badge: string; dot: string; bg:
   "Done":        { bar: "bg-secondary",                         dot: "bg-secondary", badge: "bg-secondary/15 text-secondary font-semibold",  bg: "bg-secondary/[0.02] dark:bg-secondary/[0.03]" },
 };
 
+function isCompletionListName(name?: string): boolean {
+  if (!name) return false;
+  const n = name.trim().toLowerCase();
+  return n === "done" || n === "completed" || n === "finished";
+}
+
 function getListTheme(name: string) {
+  if (isCompletionListName(name)) {
+    return LIST_THEMES["Done"];
+  }
   return LIST_THEMES[name] ?? {
     bar: "bg-primary/60",
     dot: "bg-primary/60",
@@ -1085,7 +1094,7 @@ export default function BoardKanbanPage() {
                   .filter((t) => t.listId === list.id)
                   .sort((a, b) => a.position - b.position);
                 const columnTasks = filterTasks(rawTasks);
-                const isLastList = list.name === "Done";
+                const isLastList = isCompletionListName(list.name);
 
                 return (
                   <KanbanColumn
@@ -1160,7 +1169,7 @@ export default function BoardKanbanPage() {
                 onClick={() => {}}
                 taskLists={taskLists}
                 currentListId={activeTask.listId}
-                isDone={uniqueTaskLists.find((l) => l.id === activeTask.listId)?.name === "Done"}
+                isDone={isCompletionListName(uniqueTaskLists.find((l) => l.id === activeTask.listId)?.name)}
                 members={members}
                 allLabels={labels}
               />
@@ -1174,7 +1183,7 @@ export default function BoardKanbanPage() {
                   .sort((a, b) => a.position - b.position)}
                 allTaskLists={uniqueTaskLists}
                 boardId={boardId}
-                isLastList={activeColumn.name === "Done"}
+                isLastList={isCompletionListName(activeColumn.name)}
                 canCreateTask={false}
                 canEditList={false}
                 addingToList={null}

@@ -46,10 +46,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 // ─── Column Status Color Helper ─────────────────────────────
+function isCompletionListName(name?: string): boolean {
+  if (!name) return false;
+  const n = name.trim().toLowerCase();
+  return n === "done" || n === "completed" || n === "finished";
+}
+
 function getListColor(listName?: string) {
   if (!listName) return "bg-slate-400";
   const lower = listName.toLowerCase();
-  if (lower.includes("done") || lower.includes("completed")) return "bg-emerald-500";
+  if (isCompletionListName(listName) || lower.includes("done") || lower.includes("completed") || lower.includes("finished")) {
+    return "bg-emerald-500";
+  }
   if (lower.includes("progress") || lower.includes("doing") || lower.includes("active")) return "bg-primary";
   if (lower.includes("review") || lower.includes("testing") || lower.includes("qa")) return "bg-amber-500";
   return "bg-slate-400";
@@ -505,7 +513,9 @@ export default function TaskDetailPage() {
   }
 
   const currentList    = taskLists.find(l => l.id === currentTask.listId);
-  const isDone         = currentList?.name === "Done";
+  const isDone         = isCompletionListName(currentList?.name);
+  const doneList       = taskLists.find(l => isCompletionListName(l.name));
+  const hasDoneList    = Boolean(doneList);
   const priorityConfig = (currentTask.priority && PRIORITY_CONFIG[currentTask.priority])
     ? PRIORITY_CONFIG[currentTask.priority]
     : NO_PRIORITY_CONFIG;
@@ -589,12 +599,16 @@ export default function TaskDetailPage() {
   };
 
   const handleToggleDone = () => {
-    const doneList = taskLists.find(l => l.name === "Done");
-    const todoList = taskLists.find(l => l.name === "To Do" || l.name === "Backlog") ?? taskLists[0];
+    const targetDoneList = doneList;
+    const todoList = taskLists.find(l => {
+      const n = l.name.trim().toLowerCase();
+      return n === "to do" || n === "todo" || n === "backlog";
+    }) ?? taskLists.find(l => !isCompletionListName(l.name)) ?? taskLists[0];
+
     if (isDone && todoList) {
       handleTaskUpdate({ listId: todoList.id });
-    } else if (!isDone && doneList) {
-      handleTaskUpdate({ listId: doneList.id });
+    } else if (!isDone && targetDoneList) {
+      handleTaskUpdate({ listId: targetDoneList.id });
     }
   };
 
@@ -796,12 +810,13 @@ export default function TaskDetailPage() {
               <Copy size={12} className="opacity-50 group-hover:opacity-100 transition-opacity" />
             </button>
 
-            {/* Quick Done toggle */}
-            {canEdit && (
+            {/* Quick Done toggle — only displayed when board has a completion list or task is already completed */}
+            {canEdit && (hasDoneList || isDone) && (
               <button
                 onClick={handleToggleDone}
+                style={{ WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-[family-name:var(--font-body)] text-[11.5px] font-medium transition-all cursor-pointer border shadow-2xs",
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-[family-name:var(--font-body)] text-[11.5px] font-medium transition-all duration-150 ease-out cursor-pointer border shadow-2xs select-none active:scale-95",
                   isDone
                     ? "bg-secondary/15 border-secondary/30 text-secondary"
                     : "bg-surface-low border-outline-variant/50 text-on-surface-variant hover:text-on-surface hover:bg-surface-high"
