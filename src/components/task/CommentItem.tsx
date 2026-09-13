@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   ChevronDown, Pencil, Trash2, Copy, Clock,
@@ -54,6 +54,39 @@ export default function CommentItem({
 
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Touch long-press handling for mobile comments
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchMovedRef = useRef<boolean>(false);
+
+  const handleTouchStart = () => {
+    touchMovedRef.current = false;
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      if (!touchMovedRef.current) {
+        if (typeof window !== "undefined" && window.getSelection) {
+          window.getSelection()?.removeAllRanges();
+        }
+        setMenuOpen(true);
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          try {
+            navigator.vibrate(40);
+          } catch {
+            // Ignore if vibration not permitted
+          }
+        }
+      }
+    }, 450);
+  };
+
+  const handleTouchMove = () => {
+    touchMovedRef.current = true;
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+  };
+
   const handleCopyText = async () => {
     try {
       await navigator.clipboard.writeText(comment.content);
@@ -69,11 +102,19 @@ export default function CommentItem({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 8 }}
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-      className="flex gap-2.5 sm:gap-3 items-start group/comment relative shrink-0"
+      className="flex gap-2.5 sm:gap-3 items-start group/comment relative shrink-0 select-none"
       onContextMenu={(e) => {
         e.preventDefault();
+        e.stopPropagation();
+        if (typeof window !== "undefined" && window.getSelection) {
+          window.getSelection()?.removeAllRanges();
+        }
         setMenuOpen(true);
       }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     >
       {/* Author Avatar */}
       <UserAvatar
@@ -122,30 +163,35 @@ export default function CommentItem({
         {/* Comment Bubble Surface */}
         <div
           className={cn(
-            "relative rounded-xl rounded-tl-sm p-3 transition-all border group/bubble cursor-pointer",
+            "relative rounded-xl rounded-tl-sm p-3 transition-all border group/bubble cursor-pointer select-none",
             isEditing
               ? "ring-2 ring-primary/50 border-primary bg-primary/5 dark:bg-primary/10 shadow-sm"
               : isAuthor
               ? "bg-surface-low/95 dark:bg-surface-lowest/90 border-outline-variant/60 shadow-2xs hover:border-outline-variant/90"
               : "bg-surface/90 dark:bg-surface/80 border-outline-variant/50 shadow-2xs hover:border-outline-variant/80"
           )}
+          style={{
+            WebkitTouchCallout: "none",
+            WebkitUserSelect: "none",
+            userSelect: "none",
+          }}
         >
           {/* Comment Content */}
-          <div className="relative pr-6">
+          <div className="relative pr-2 sm:pr-6">
             <MessageRenderer text={comment.content} />
 
-            {/* Top-Right Corner Action Menu Trigger */}
+            {/* Top-Right Corner Action Menu Trigger - hidden on mobile, visible on desktop hover */}
             <div className="absolute -top-1.5 -right-3 flex items-center">
               <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                 <DropdownMenuTrigger
                   className={cn(
                     "p-1 rounded-md text-outline hover:text-on-surface hover:bg-surface-high/80 transition-all cursor-pointer",
-                    "opacity-70 sm:opacity-0 sm:group-hover/bubble:opacity-100 focus:opacity-100",
-                    menuOpen && "opacity-100 bg-surface-high text-on-surface"
+                    "max-sm:pointer-events-none max-sm:opacity-0 sm:opacity-0 sm:group-hover/bubble:opacity-100 focus:opacity-100",
+                    menuOpen && "opacity-100 sm:bg-surface-high text-on-surface"
                   )}
                   aria-label="Comment options"
                 >
-                  <ChevronDown size={13} strokeWidth={2.5} />
+                  <ChevronDown size={13} strokeWidth={2.5} className="hidden sm:block" />
                 </DropdownMenuTrigger>
 
                 <DropdownMenuContent align="end" className="w-42 p-1 bg-surface border-outline-variant/60 shadow-xl rounded-xl">

@@ -352,6 +352,39 @@ export default function TaskDetailPage() {
     firstUnreadIdRef.current = null;
   };
 
+  // Touch long-press handling for mobile comments
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchMovedRef = useRef<boolean>(false);
+
+  const handleCommentTouchStart = (commentId: string) => {
+    touchMovedRef.current = false;
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      if (!touchMovedRef.current) {
+        if (typeof window !== "undefined" && window.getSelection) {
+          window.getSelection()?.removeAllRanges();
+        }
+        setOpenMenuCommentId(commentId);
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          try {
+            navigator.vibrate(40);
+          } catch {
+            // Ignore if vibration not permitted
+          }
+        }
+      }
+    }, 450);
+  };
+
+  const handleCommentTouchMove = () => {
+    touchMovedRef.current = true;
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+  };
+
+  const handleCommentTouchEnd = () => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+  };
+
   // Load task and board resources asynchronously
   useEffect(() => {
     let isMounted = true;
@@ -1552,14 +1585,22 @@ export default function TaskDetailPage() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{ duration: 0.2 }}
                     className={cn(
-                      "flex gap-2.5 group relative",
+                      "flex gap-2.5 group relative select-none",
                       isMe ? "flex-row-reverse" : "flex-row",
                       isContinuation ? "mt-0.5" : "mt-2.5"
                     )}
                     onContextMenu={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
+                      if (typeof window !== "undefined" && window.getSelection) {
+                        window.getSelection()?.removeAllRanges();
+                      }
                       setOpenMenuCommentId(comment.id);
                     }}
+                    onTouchStart={() => handleCommentTouchStart(comment.id)}
+                    onTouchMove={handleCommentTouchMove}
+                    onTouchEnd={handleCommentTouchEnd}
+                    onTouchCancel={handleCommentTouchEnd}
                   >
                     {/* Avatar column */}
                     <div className={cn(
@@ -1595,25 +1636,32 @@ export default function TaskDetailPage() {
                       )}
 
                       {/* The bubble */}
-                      <div className={cn(
-                        "relative px-3.5 py-2.5 text-[13px] leading-relaxed shadow-2xs group/bubble transition-all cursor-pointer",
-                        "font-[family-name:var(--font-body)]",
-                        isEditingThis
-                          ? "ring-2 ring-primary/50 border-primary bg-primary/5 dark:bg-primary/10 shadow-sm"
-                          : isMe
-                          ? [
-                              "bg-primary text-on-primary rounded-2xl",
-                              isContinuation ? "rounded-tr-2xl" : "rounded-tr-sm",
-                            ]
-                          : [
-                              "bg-surface-low border border-outline-variant/50 text-on-surface rounded-2xl",
-                              isContinuation ? "rounded-tl-2xl" : "rounded-tl-sm",
-                            ]
-                      )}>
-                        <div className="relative pr-4">
+                      <div
+                        className={cn(
+                          "relative px-3.5 py-2.5 text-[13px] leading-relaxed shadow-2xs group/bubble transition-all cursor-pointer select-none",
+                          "font-[family-name:var(--font-body)]",
+                          isEditingThis
+                            ? "ring-2 ring-primary/50 border-primary bg-primary/5 dark:bg-primary/10 shadow-sm"
+                            : isMe
+                            ? [
+                                "bg-primary text-on-primary rounded-2xl",
+                                isContinuation ? "rounded-tr-2xl" : "rounded-tr-sm",
+                              ]
+                            : [
+                                "bg-surface-low border border-outline-variant/50 text-on-surface rounded-2xl",
+                                isContinuation ? "rounded-tl-2xl" : "rounded-tl-sm",
+                              ]
+                        )}
+                        style={{
+                          WebkitTouchCallout: "none",
+                          WebkitUserSelect: "none",
+                          userSelect: "none",
+                        }}
+                      >
+                        <div className="relative pr-2 sm:pr-4">
                           <MessageRenderer text={comment.content} isOwn={isMe} />
 
-                          {/* Dropdown menu trigger */}
+                          {/* Dropdown menu trigger - completely hidden on mobile (<sm), visible on desktop hover */}
                           <div className="absolute -top-1.5 -right-2">
                             <DropdownMenu
                               open={openMenuCommentId === comment.id}
@@ -1623,12 +1671,12 @@ export default function TaskDetailPage() {
                                 className={cn(
                                   "p-0.5 rounded-md text-outline hover:text-on-surface transition-all cursor-pointer",
                                   isMe ? "hover:bg-white/20 text-white/70" : "hover:bg-surface-high text-outline",
-                                  "opacity-70 sm:opacity-0 sm:group-hover/bubble:opacity-100 focus:opacity-100",
-                                  openMenuCommentId === comment.id && "opacity-100 bg-black/10 dark:bg-white/10"
+                                  "max-sm:pointer-events-none max-sm:opacity-0 sm:opacity-0 sm:group-hover/bubble:opacity-100 focus:opacity-100",
+                                  openMenuCommentId === comment.id && "opacity-100 sm:bg-black/10 sm:dark:bg-white/10"
                                 )}
                                 aria-label="Comment menu"
                               >
-                                <ChevronDown size={12} />
+                                <ChevronDown size={12} className="hidden sm:block" />
                               </DropdownMenuTrigger>
 
                               <DropdownMenuContent align={isMe ? "end" : "start"} className="w-42 p-1 bg-surface border-outline-variant/60 shadow-xl rounded-xl">
