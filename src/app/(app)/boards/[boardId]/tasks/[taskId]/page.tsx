@@ -286,6 +286,7 @@ export default function TaskDetailPage() {
   const [commentToDelete, setCommentToDelete] = useState<Comment | null>(null);
   const [editingComment, setEditingComment] = useState<Comment | null>(null);
   const [openMenuCommentId, setOpenMenuCommentId] = useState<string | null>(null);
+  const [activeMobileComment, setActiveMobileComment] = useState<Comment | null>(null);
 
   const [attachmentToDelete, setAttachmentToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showDeleteConfirm,  setShowDeleteConfirm]  = useState(false);
@@ -355,16 +356,18 @@ export default function TaskDetailPage() {
   // Touch long-press handling for mobile comments
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchMovedRef = useRef<boolean>(false);
+  const isLongPressActiveRef = useRef<boolean>(false);
 
-  const handleCommentTouchStart = (commentId: string) => {
+  const handleCommentTouchStart = (comment: Comment) => {
     touchMovedRef.current = false;
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
     longPressTimerRef.current = setTimeout(() => {
       if (!touchMovedRef.current) {
+        isLongPressActiveRef.current = true;
         if (typeof window !== "undefined" && window.getSelection) {
           window.getSelection()?.removeAllRanges();
         }
-        setOpenMenuCommentId(commentId);
+        setActiveMobileComment(comment);
         if (typeof navigator !== "undefined" && navigator.vibrate) {
           try {
             navigator.vibrate(40);
@@ -372,8 +375,11 @@ export default function TaskDetailPage() {
             // Ignore if vibration not permitted
           }
         }
+        setTimeout(() => {
+          isLongPressActiveRef.current = false;
+        }, 800);
       }
-    }, 450);
+    }, 400);
   };
 
   const handleCommentTouchMove = () => {
@@ -1595,9 +1601,14 @@ export default function TaskDetailPage() {
                       if (typeof window !== "undefined" && window.getSelection) {
                         window.getSelection()?.removeAllRanges();
                       }
-                      setOpenMenuCommentId(comment.id);
+                      const isMobileDevice = typeof window !== "undefined" && (window.innerWidth < 640 || window.matchMedia("(pointer: coarse)").matches);
+                      if (isMobileDevice || isLongPressActiveRef.current) {
+                        setActiveMobileComment(comment);
+                      } else {
+                        setOpenMenuCommentId(comment.id);
+                      }
                     }}
-                    onTouchStart={() => handleCommentTouchStart(comment.id)}
+                    onTouchStart={() => handleCommentTouchStart(comment)}
                     onTouchMove={handleCommentTouchMove}
                     onTouchEnd={handleCommentTouchEnd}
                     onTouchCancel={handleCommentTouchEnd}
@@ -1661,8 +1672,8 @@ export default function TaskDetailPage() {
                         <div className="relative pr-2 sm:pr-4">
                           <MessageRenderer text={comment.content} isOwn={isMe} />
 
-                          {/* Dropdown menu trigger - completely hidden on mobile (<sm), visible on desktop hover */}
-                          <div className="absolute -top-1.5 -right-2">
+                          {/* Desktop Dropdown menu trigger - completely hidden on mobile (<sm), visible on desktop hover */}
+                          <div className="hidden sm:block absolute -top-1.5 -right-2">
                             <DropdownMenu
                               open={openMenuCommentId === comment.id}
                               onOpenChange={(open) => setOpenMenuCommentId(open ? comment.id : null)}
@@ -1671,12 +1682,12 @@ export default function TaskDetailPage() {
                                 className={cn(
                                   "p-0.5 rounded-md text-outline hover:text-on-surface transition-all cursor-pointer",
                                   isMe ? "hover:bg-white/20 text-white/70" : "hover:bg-surface-high text-outline",
-                                  "max-sm:pointer-events-none max-sm:opacity-0 sm:opacity-0 sm:group-hover/bubble:opacity-100 focus:opacity-100",
-                                  openMenuCommentId === comment.id && "opacity-100 sm:bg-black/10 sm:dark:bg-white/10"
+                                  "opacity-0 group-hover/bubble:opacity-100 focus:opacity-100",
+                                  openMenuCommentId === comment.id && "opacity-100 bg-black/10 dark:bg-white/10"
                                 )}
                                 aria-label="Comment menu"
                               >
-                                <ChevronDown size={12} className="hidden sm:block" />
+                                <ChevronDown size={12} />
                               </DropdownMenuTrigger>
 
                               <DropdownMenuContent align={isMe ? "end" : "start"} className="w-42 p-1 bg-surface border-outline-variant/60 shadow-xl rounded-xl">
@@ -1728,6 +1739,98 @@ export default function TaskDetailPage() {
 
         <div ref={threadEndRef} className="h-2" />
       </div>
+
+      {/* Mobile Comment Action Sheet Drawer */}
+      <AnimatePresence>
+        {activeMobileComment && (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end sm:hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setActiveMobileComment(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            />
+
+            {/* Sheet */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 320 }}
+              className="relative z-10 w-full bg-surface border-t border-outline-variant/60 rounded-t-2xl p-4 shadow-2xl flex flex-col gap-1.5 pb-8"
+            >
+              {/* Handle */}
+              <div className="w-10 h-1 rounded-full bg-outline-variant/60 self-center mb-2" />
+
+              {/* Snippet preview */}
+              <div className="px-2 py-1 mb-2 text-[12px] text-outline line-clamp-2 italic border-b border-outline-variant/30 font-[family-name:var(--font-body)]">
+                "{activeMobileComment.content}"
+              </div>
+
+              {/* Actions */}
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(activeMobileComment.content);
+                  toast.success("Comment copied!");
+                  setActiveMobileComment(null);
+                }}
+                className="flex items-center gap-3 w-full py-3 px-3.5 rounded-xl text-[14px] font-medium text-on-surface hover:bg-surface-high active:bg-surface-high transition-colors text-left cursor-pointer"
+              >
+                <Copy size={16} className="text-outline" />
+                <span>Copy Text</span>
+              </button>
+
+              {(activeMobileComment.authorId === user?.id ||
+                activeMobileComment.authorId === user?.email ||
+                activeMobileComment.author?.id === user?.id ||
+                activeMobileComment.author?.id === user?.email) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const c = activeMobileComment;
+                    setActiveMobileComment(null);
+                    handleStartEdit(c);
+                  }}
+                  className="flex items-center gap-3 w-full py-3 px-3.5 rounded-xl text-[14px] font-medium text-on-surface hover:bg-surface-high active:bg-surface-high transition-colors text-left cursor-pointer"
+                >
+                  <Pencil size={16} className="text-outline" />
+                  <span>Edit Comment</span>
+                </button>
+              )}
+
+              {(activeMobileComment.authorId === user?.id ||
+                activeMobileComment.authorId === user?.email ||
+                activeMobileComment.author?.id === user?.id ||
+                activeMobileComment.author?.id === user?.email) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const c = activeMobileComment;
+                    setActiveMobileComment(null);
+                    setCommentToDelete(c);
+                  }}
+                  className="flex items-center gap-3 w-full py-3 px-3.5 rounded-xl text-[14px] font-medium text-error hover:bg-error-container/20 active:bg-error-container/20 transition-colors text-left cursor-pointer"
+                >
+                  <Trash2 size={16} />
+                  <span>Delete</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setActiveMobileComment(null)}
+                className="mt-2 w-full py-2.5 rounded-xl text-[13px] font-semibold text-outline hover:text-on-surface active:bg-surface-high transition-colors text-center border border-outline-variant/40 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* WhatsApp-style floating Scroll-to-Bottom / Unread Badge Button */}
       <AnimatePresence>

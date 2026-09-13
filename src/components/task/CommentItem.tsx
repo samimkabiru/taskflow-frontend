@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown, Pencil, Trash2, Copy, Clock,
 } from "lucide-react";
@@ -53,20 +53,23 @@ export default function CommentItem({
   );
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Touch long-press handling for mobile comments
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchMovedRef = useRef<boolean>(false);
+  const isLongPressActiveRef = useRef<boolean>(false);
 
   const handleTouchStart = () => {
     touchMovedRef.current = false;
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
     longPressTimerRef.current = setTimeout(() => {
       if (!touchMovedRef.current) {
+        isLongPressActiveRef.current = true;
         if (typeof window !== "undefined" && window.getSelection) {
           window.getSelection()?.removeAllRanges();
         }
-        setMenuOpen(true);
+        setMobileDrawerOpen(true);
         if (typeof navigator !== "undefined" && navigator.vibrate) {
           try {
             navigator.vibrate(40);
@@ -74,8 +77,11 @@ export default function CommentItem({
             // Ignore if vibration not permitted
           }
         }
+        setTimeout(() => {
+          isLongPressActiveRef.current = false;
+        }, 800);
       }
-    }, 450);
+    }, 400);
   };
 
   const handleTouchMove = () => {
@@ -109,7 +115,12 @@ export default function CommentItem({
         if (typeof window !== "undefined" && window.getSelection) {
           window.getSelection()?.removeAllRanges();
         }
-        setMenuOpen(true);
+        const isMobile = typeof window !== "undefined" && (window.innerWidth < 640 || window.matchMedia("(pointer: coarse)").matches);
+        if (isMobile || isLongPressActiveRef.current) {
+          setMobileDrawerOpen(true);
+        } else {
+          setMenuOpen(true);
+        }
       }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -180,18 +191,18 @@ export default function CommentItem({
           <div className="relative pr-2 sm:pr-6">
             <MessageRenderer text={comment.content} />
 
-            {/* Top-Right Corner Action Menu Trigger - hidden on mobile, visible on desktop hover */}
-            <div className="absolute -top-1.5 -right-3 flex items-center">
+            {/* Desktop Top-Right Corner Action Menu Trigger - completely hidden on mobile (<sm), visible on desktop hover */}
+            <div className="hidden sm:flex absolute -top-1.5 -right-3 items-center">
               <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                 <DropdownMenuTrigger
                   className={cn(
                     "p-1 rounded-md text-outline hover:text-on-surface hover:bg-surface-high/80 transition-all cursor-pointer",
-                    "max-sm:pointer-events-none max-sm:opacity-0 sm:opacity-0 sm:group-hover/bubble:opacity-100 focus:opacity-100",
-                    menuOpen && "opacity-100 sm:bg-surface-high text-on-surface"
+                    "opacity-0 group-hover/bubble:opacity-100 focus:opacity-100",
+                    menuOpen && "opacity-100 bg-surface-high text-on-surface"
                   )}
                   aria-label="Comment options"
                 >
-                  <ChevronDown size={13} strokeWidth={2.5} className="hidden sm:block" />
+                  <ChevronDown size={13} strokeWidth={2.5} />
                 </DropdownMenuTrigger>
 
                 <DropdownMenuContent align="end" className="w-42 p-1 bg-surface border-outline-variant/60 shadow-xl rounded-xl">
@@ -234,6 +245,89 @@ export default function CommentItem({
           </div>
         </div>
       </div>
+
+      {/* Mobile Comment Action Sheet Drawer */}
+      <AnimatePresence>
+        {mobileDrawerOpen && (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end sm:hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setMobileDrawerOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            />
+
+            {/* Sheet */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 320 }}
+              className="relative z-10 w-full bg-surface border-t border-outline-variant/60 rounded-t-2xl p-4 shadow-2xl flex flex-col gap-1.5 pb-8"
+            >
+              {/* Handle */}
+              <div className="w-10 h-1 rounded-full bg-outline-variant/60 self-center mb-2" />
+
+              {/* Snippet preview */}
+              <div className="px-2 py-1 mb-2 text-[12px] text-outline line-clamp-2 italic border-b border-outline-variant/30 font-[family-name:var(--font-body)]">
+                "{comment.content}"
+              </div>
+
+              {/* Actions */}
+              <button
+                type="button"
+                onClick={() => {
+                  handleCopyText();
+                  setMobileDrawerOpen(false);
+                }}
+                className="flex items-center gap-3 w-full py-3 px-3.5 rounded-xl text-[14px] font-medium text-on-surface hover:bg-surface-high active:bg-surface-high transition-colors text-left cursor-pointer"
+              >
+                <Copy size={16} className="text-outline" />
+                <span>Copy Text</span>
+              </button>
+
+              {isAuthor && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    onStartEdit(comment);
+                  }}
+                  className="flex items-center gap-3 w-full py-3 px-3.5 rounded-xl text-[14px] font-medium text-on-surface hover:bg-surface-high active:bg-surface-high transition-colors text-left cursor-pointer"
+                >
+                  <Pencil size={16} className="text-outline" />
+                  <span>Edit Comment</span>
+                </button>
+              )}
+
+              {isAuthor && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    onDelete(comment);
+                  }}
+                  className="flex items-center gap-3 w-full py-3 px-3.5 rounded-xl text-[14px] font-medium text-error hover:bg-error-container/20 active:bg-error-container/20 transition-colors text-left cursor-pointer"
+                >
+                  <Trash2 size={16} />
+                  <span>Delete</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setMobileDrawerOpen(false)}
+                className="mt-2 w-full py-2.5 rounded-xl text-[13px] font-semibold text-outline hover:text-on-surface active:bg-surface-high transition-colors text-center border border-outline-variant/40 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
