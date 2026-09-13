@@ -296,6 +296,61 @@ export default function TaskDetailPage() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const threadEndRef  = useRef<HTMLDivElement>(null);
   const composerRef   = useRef<RichComposerHandle>(null);
+  const threadContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef<boolean>(true);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
+  const firstUnreadIdRef = useRef<string | null>(null);
+
+  const handleThreadScroll = () => {
+    const el = threadContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distanceFromBottom <= 60;
+    isAtBottomRef.current = atBottom;
+
+    if (atBottom) {
+      setUnreadCount(0);
+      setShowScrollBottomBtn(false);
+      firstUnreadIdRef.current = null;
+    } else {
+      setShowScrollBottomBtn(true);
+    }
+  };
+
+  const handleNewIncomingItem = (itemId?: string, isSelf: boolean = false) => {
+    if (isSelf || isAtBottomRef.current) {
+      setTimeout(() => {
+        threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 50);
+      setUnreadCount(0);
+      setShowScrollBottomBtn(false);
+      firstUnreadIdRef.current = null;
+    } else {
+      setUnreadCount((prev) => prev + 1);
+      setShowScrollBottomBtn(true);
+      if (!firstUnreadIdRef.current && itemId) {
+        firstUnreadIdRef.current = itemId;
+      }
+    }
+  };
+
+  const scrollToBottomOrFirstUnread = () => {
+    if (firstUnreadIdRef.current) {
+      const el = document.getElementById(`thread-item-${firstUnreadIdRef.current}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        firstUnreadIdRef.current = null;
+        setUnreadCount(0);
+        setShowScrollBottomBtn(false);
+        return;
+      }
+    }
+    threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setUnreadCount(0);
+    setShowScrollBottomBtn(false);
+    firstUnreadIdRef.current = null;
+  };
 
   // Load task and board resources asynchronously
   useEffect(() => {
@@ -363,16 +418,37 @@ export default function TaskDetailPage() {
   useBoardWebSocket(boardId, {
     onTaskUpdated: (task) => {
       if (task.id === taskId) {
-        setCurrentTask(task);
+        setCurrentTask((prev) => (prev ? { ...prev, ...task } : task));
         setTitleText(task.title);
         setDescText(task.description || "");
-        getActivitiesForTask(taskId).then(setActivities).catch(() => {});
+        getActivitiesForTask(taskId)
+          .then((acts) => {
+            setActivities(acts);
+            handleNewIncomingItem(acts[acts.length - 1]?.id);
+          })
+          .catch(() => {});
+      }
+    },
+    onTaskMoved: (task) => {
+      if (task.id === taskId) {
+        setCurrentTask((prev) => (prev ? { ...prev, ...task } : task));
+        getActivitiesForTask(taskId)
+          .then((acts) => {
+            setActivities(acts);
+            handleNewIncomingItem(acts[acts.length - 1]?.id);
+          })
+          .catch(() => {});
       }
     },
     onTaskLabelsChanged: (tid, labels) => {
       if (tid === taskId) {
         setCurrentTask((prev) => (prev ? { ...prev, labelIds: labels.map((l) => l.id), labels } : prev));
-        getActivitiesForTask(taskId).then(setActivities).catch(() => {});
+        getActivitiesForTask(taskId)
+          .then((acts) => {
+            setActivities(acts);
+            handleNewIncomingItem(acts[acts.length - 1]?.id);
+          })
+          .catch(() => {});
       }
     },
     onLabelUpdated: (updatedLabel) => {
@@ -407,9 +483,11 @@ export default function TaskDetailPage() {
     onCommentAdded: (comment) => {
       if (comment.taskId === taskId) {
         setCommentsList((prev) => (prev.some((c) => c.id === comment.id) ? prev : [...prev, comment]));
-        if (comment.authorId !== user?.id) {
+        const isMe = comment.authorId === user?.id || comment.author?.id === user?.id;
+        if (!isMe) {
           playMessageSentSound();
         }
+        handleNewIncomingItem(comment.id, isMe);
       }
     },
     onCommentUpdated: (comment) => {
@@ -423,7 +501,12 @@ export default function TaskDetailPage() {
     onAttachmentAdded: (attachment) => {
       if (attachment.taskId === taskId) {
         setAttachmentsList((prev) => (prev.some((a) => a.id === attachment.id) ? prev : [...prev, attachment]));
-        getActivitiesForTask(taskId).then(setActivities).catch(() => {});
+        getActivitiesForTask(taskId)
+          .then((acts) => {
+            setActivities(acts);
+            handleNewIncomingItem(attachment.id);
+          })
+          .catch(() => {});
       }
     },
     onAttachmentRemoved: (attachmentId) => {
@@ -440,6 +523,15 @@ export default function TaskDetailPage() {
       setIsDiscussionOpen(saved === "true");
     }
   }, []);
+
+  // Scroll to bottom on initial mount or when opening discussion
+  useEffect(() => {
+    if (!loading && currentTask) {
+      setTimeout(() => {
+        threadEndRef.current?.scrollIntoView({ behavior: "auto" });
+      }, 80);
+    }
+  }, [loading, currentTask?.id, activeTab]);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -659,7 +751,7 @@ export default function TaskDetailPage() {
         composerRef.current?.clear();
         playMessageSentSound();
         toast.success("Comment posted!");
-        setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+        handleNewIncomingItem(resolvedComment.id, true);
       } catch {
         toast.error("Failed to post comment");
       }
@@ -1332,7 +1424,7 @@ export default function TaskDetailPage() {
   })();
 
   const threadPanelJSX = (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 relative">
       {/* Thread Subheader: Title, comment count badge, and sound mute/unmute toggle */}
       <div className="shrink-0 flex items-center justify-between px-3 md:px-5 py-2.5 border-b border-outline-variant/30 bg-surface-low/50">
         <div className="flex items-center gap-2 min-w-0">
@@ -1364,7 +1456,11 @@ export default function TaskDetailPage() {
       </div>
 
       {/* Scrollable thread body */}
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 md:px-5 py-4 md:py-5 flex flex-col gap-1">
+      <div
+        ref={threadContainerRef}
+        onScroll={handleThreadScroll}
+        className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 md:px-5 py-4 md:py-5 flex flex-col gap-1"
+      >
         {/* Empty state */}
         {thread.length === 0 && (
           <motion.div
@@ -1409,6 +1505,7 @@ export default function TaskDetailPage() {
                   return (
                     <motion.div
                       key={item.id}
+                      id={`thread-item-${item.id}`}
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.18, delay: idx * 0.02 }}
@@ -1450,6 +1547,7 @@ export default function TaskDetailPage() {
                 return (
                   <motion.div
                     key={comment.id}
+                    id={`thread-item-${comment.id}`}
                     initial={{ opacity: 0, y: 8, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{ duration: 0.2 }}
@@ -1582,6 +1680,34 @@ export default function TaskDetailPage() {
 
         <div ref={threadEndRef} className="h-2" />
       </div>
+
+      {/* WhatsApp-style floating Scroll-to-Bottom / Unread Badge Button */}
+      <AnimatePresence>
+        {showScrollBottomBtn && (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, scale: 0.8, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 8 }}
+            whileTap={{ scale: 0.92 }}
+            transition={{ duration: 0.15 }}
+            onClick={scrollToBottomOrFirstUnread}
+            style={{ WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
+            className={cn(
+              "absolute right-4 md:right-6 z-20 w-9 h-9 rounded-full bg-surface border border-outline-variant/60 shadow-lg flex items-center justify-center text-on-surface hover:bg-surface-high hover:border-primary/50 active:scale-95 transition-all cursor-pointer select-none group",
+              canComment ? "bottom-20 md:bottom-22" : "bottom-4"
+            )}
+            aria-label="Scroll to newest messages"
+          >
+            <ChevronDown size={18} className="text-on-surface-variant group-hover:text-primary transition-colors" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-on-primary font-[family-name:var(--font-mono)] text-[10px] font-bold flex items-center justify-center shadow-md animate-pulse">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* Composer */}
       {canComment && (
